@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visual Ranker — Modes</title>
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg:#0e1014; --panel:#171a24; --panel-2:#1e222e; --raise:#252a38;
+      --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.16);
+      --ink:#eef1f7; --muted:#98a1b2; --faint:#6a7486;
+      --accent:#f0a84a; --accent-2:#ffce7a; --gold:#f5c451; --silver:#cbd3df; --bronze:#d0925e;
+      --keep:#46cf8c; --maybe:#e4b552; --pass:#ef6a5d; --violet:#8b7bf7; --teal:#4fd0c0;
+      --shadow:0 16px 40px rgba(0,0,0,.45); --radius:16px; --font:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    }
+    *{box-sizing:border-box;}
+    body{margin:0; background:radial-gradient(1200px 600px at 100% -10%,rgba(240,168,74,.10),transparent 60%),radial-gradient(900px 500px at -10% 0%,rgba(120,140,255,.08),transparent 55%),var(--bg); color:var(--ink); font-family:var(--font); line-height:1.5; -webkit-font-smoothing:antialiased;}
+    button,input,textarea,select{font:inherit; color:inherit;}
+    button{border:1px solid var(--line-2); background:var(--panel-2); color:var(--ink); border-radius:10px; min-height:38px; padding:8px 14px; cursor:pointer; font-size:13px; font-weight:600; transition:background .12s,border-color .12s,transform .06s;}
+    button:hover{background:var(--raise);}
+    button:active{transform:translateY(1px);}
+    button.primary{background:linear-gradient(180deg,var(--accent-2),var(--accent)); color:#241a08; border-color:transparent;}
+    button.primary:hover{filter:brightness(1.06);}
+    button.ghost{background:transparent; border-color:var(--line);}
+    button:disabled{opacity:.4; cursor:not-allowed;}
+    input,textarea,select{border:1px solid var(--line); background:rgba(0,0,0,.25); border-radius:10px; min-height:38px; padding:8px 11px; min-width:0; font-size:13px;}
+    input:focus,textarea:focus,select:focus{outline:none; border-color:var(--accent);}
+    textarea{resize:vertical;}
+    input[type=range]{min-height:0; padding:0; accent-color:var(--accent); width:100%; cursor:pointer;}
+    ::placeholder{color:var(--faint);}
+    a{color:inherit;}
+
+    .wrap{width:min(1560px,calc(100% - 36px)); margin:0 auto; padding:20px 0 60px;}
+    .topbar{display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap; margin-bottom:18px;}
+    .brand{display:flex; align-items:center; gap:12px;}
+    .logo{width:42px; height:42px; border-radius:12px; display:grid; place-items:center; background:linear-gradient(150deg,var(--accent-2),var(--accent)); color:#241a08; font-weight:800; font-size:20px; box-shadow:0 6px 18px rgba(240,168,74,.35);}
+    .brand h1{margin:0; font-size:19px; font-weight:750; letter-spacing:-.01em;}
+    .brand p{margin:1px 0 0; color:var(--muted); font-size:12px;}
+    .top-actions{display:flex; gap:8px; flex-wrap:wrap;}
+
+    .boards{display:flex; gap:6px; align-items:center; overflow-x:auto; padding-bottom:2px; margin-bottom:14px;}
+    .board-chip{display:inline-flex; align-items:center; gap:8px; white-space:nowrap; background:var(--panel); border-color:var(--line); color:var(--muted);}
+    .board-chip.active{background:var(--ink); color:#0e1014; border-color:var(--ink);}
+    .board-chip .count{opacity:.6; font-size:12px;}
+    .board-chip .chip-x{width:15px; height:15px; display:inline-grid; place-items:center; border-radius:4px; opacity:.5;}
+    .board-chip .chip-x:hover{opacity:1; background:rgba(0,0,0,.2);}
+
+    /* Mode switcher */
+    .modebar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
+    .modeseg{display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:4px; gap:3px;}
+    .modeseg button{border:0; background:transparent; color:var(--muted); border-radius:9px; min-height:36px; padding:6px 16px; font-weight:650; display:inline-flex; align-items:center; gap:7px;}
+    .modeseg button .ic{font-size:15px;}
+    .modeseg button.on{background:var(--raise); color:var(--ink); box-shadow:0 1px 0 rgba(255,255,255,.05) inset;}
+    .mode-desc{color:var(--faint); font-size:12px;}
+
+    .layout{display:grid; grid-template-columns:300px minmax(0,1fr); gap:22px; align-items:start;}
+    .rail{position:sticky; top:16px; display:grid; gap:14px; max-height:calc(100vh - 32px); overflow:auto;}
+    .main{min-width:0;}
+    .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);}
+    .card .card-h{padding:14px 16px 0;}
+    .card h2{margin:0; font-size:13px; font-weight:700; letter-spacing:.02em; text-transform:uppercase; color:var(--faint);}
+    .card .body{padding:12px 16px 16px;}
+    .hint{color:var(--faint); font-size:12px; margin:4px 0 12px;}
+    .stack{display:grid; gap:9px;}
+
+    .crit{margin-bottom:14px;}
+    .crit .crit-top{display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; margin-bottom:6px;}
+    .crit input.crit-label{min-height:30px; font-size:12px; font-weight:600; background:transparent; border-color:transparent; padding-left:2px;}
+    .crit input.crit-label:hover{border-color:var(--line);}
+    .crit .crit-x{min-height:28px; width:28px; padding:0;}
+    .crit .crit-bot{display:grid; grid-template-columns:1fr 30px; gap:8px; align-items:center;}
+    .crit .crit-bot strong{font-size:12px; text-align:right; color:var(--accent-2);}
+    .crit-add{display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:4px;}
+    .tags{display:flex; flex-wrap:wrap; gap:6px;}
+    .tag{border:0; background:var(--panel-2); color:var(--muted); border-radius:999px; padding:3px 10px; min-height:24px; font-size:12px; cursor:pointer;}
+    .tag:hover{background:var(--raise); color:var(--accent-2);}
+
+    .toolbar{display:grid; grid-template-columns:minmax(160px,1fr) auto auto auto; gap:10px; margin-bottom:16px; align-items:center;}
+
+    /* ---- LIST MODE ---- */
+    .podium{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:16px;}
+    .pod{position:relative; border-radius:var(--radius); overflow:hidden; background:var(--panel); border:1px solid var(--line); box-shadow:var(--shadow);}
+    .pod .pod-img{position:relative; aspect-ratio:16/10; overflow:hidden;}
+    .pod .pod-img img{width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in;}
+    .pod .medal{position:absolute; top:12px; left:12px; z-index:2; width:38px; height:38px; border-radius:11px; display:grid; place-items:center; font-weight:800; font-size:16px; color:#10131a; box-shadow:0 6px 16px rgba(0,0,0,.4);}
+    .pod.p0{border-color:rgba(245,196,81,.5);} .pod.p0 .medal{background:linear-gradient(150deg,#ffe08a,var(--gold));}
+    .pod.p1 .medal{background:linear-gradient(150deg,#eef2f8,var(--silver));}
+    .pod.p2 .medal{background:linear-gradient(150deg,#e9b787,var(--bronze));}
+    .pod .pod-score{position:absolute; top:12px; right:12px; z-index:2; background:rgba(8,10,14,.72); border-radius:10px; padding:6px 10px; font-weight:750; font-size:15px; border:1px solid var(--line);}
+    .pod .pod-body{padding:12px 14px 14px;}
+    .pod .pod-body h3{margin:0 0 4px; font-size:17px;}
+    .pod .pod-body p{margin:0; color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+    .list{display:grid; gap:12px;}
+    .row{display:grid; grid-template-columns:46px 110px minmax(0,1fr) 230px; gap:16px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; transition:border-color .12s;}
+    .row:hover{border-color:var(--line-2);}
+    .row.selected{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset;}
+    .row.drop{border-color:var(--accent); background:var(--panel-2);}
+    .rank-badge{display:grid; place-items:center; width:42px; height:42px; border-radius:12px; background:var(--panel-2); border:1px solid var(--line); font-weight:800; font-size:16px;}
+    .row.top .rank-badge{background:linear-gradient(150deg,var(--accent-2),var(--accent)); color:#241a08; border-color:transparent;}
+    .thumb{position:relative; aspect-ratio:3/4; border-radius:12px; overflow:hidden; background:var(--panel-2);}
+    .thumb img{width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in;}
+    .row-main{min-width:0; display:grid; gap:8px;}
+    .row-title{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+    .row-title h3{margin:0; font-size:18px; font-weight:700;}
+    .chip{border-radius:999px; padding:2px 9px; font-size:11px; font-weight:700; border:1px solid var(--line); color:var(--muted); text-transform:capitalize;}
+    .chip.keep{color:var(--keep); border-color:rgba(70,207,140,.35); background:rgba(70,207,140,.10);}
+    .chip.maybe{color:var(--maybe); border-color:rgba(228,181,82,.35); background:rgba(228,181,82,.10);}
+    .chip.pass{color:var(--pass); border-color:rgba(239,106,93,.35); background:rgba(239,106,93,.10);}
+    .row-note{margin:0; color:var(--muted); font-size:13px;}
+    .row-tags{display:flex; gap:6px; flex-wrap:wrap;}
+    .sel{display:inline-flex; align-items:center; gap:6px; color:var(--faint); font-size:12px; cursor:pointer; margin-left:auto;}
+    .sel input{width:16px; height:16px; min-height:0; accent-color:var(--accent);}
+    .row-metrics{display:grid; gap:8px;}
+    .fit{display:flex; align-items:baseline; gap:8px;}
+    .fit .num{font-size:30px; font-weight:800; letter-spacing:-.02em; line-height:1;}
+    .fit .lab{color:var(--faint); font-size:11px; text-transform:uppercase; letter-spacing:.04em;}
+    .bars{display:grid; gap:5px;}
+    .bar{display:grid; grid-template-columns:66px 1fr 26px; gap:8px; align-items:center; font-size:11px; color:var(--muted);}
+    .track{height:6px; border-radius:999px; background:var(--panel-2); overflow:hidden;}
+    .fill{height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent),var(--accent-2));}
+    .bar strong{text-align:right; color:var(--ink); font-weight:600;}
+    .row-tools{grid-column:1/-1; border-top:1px solid var(--line); margin-top:4px; padding-top:10px; display:none;}
+    .row.expanded .row-tools{display:block;}
+    .tools-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+    .status-set{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:10px;}
+    .status-set button.active[data-status=keep]{background:var(--keep); color:#06130c; border-color:transparent;}
+    .status-set button.active[data-status=maybe]{background:var(--maybe); color:#1a1403; border-color:transparent;}
+    .status-set button.active[data-status=pass]{background:var(--pass); color:#1a0806; border-color:transparent;}
+    .metric{display:grid; grid-template-columns:66px 1fr 30px; gap:8px; align-items:center; color:var(--muted); font-size:12px; margin-bottom:6px;}
+    .metric strong{text-align:right; color:var(--ink);}
+    .img-tools{display:grid; grid-template-columns:1fr auto auto; gap:6px; margin-bottom:8px;}
+    .img-tools input{min-height:34px; font-size:12px;}
+    .img-tools button,.img-tools label.up{min-height:34px; padding:0 10px; font-size:12px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--line-2); border-radius:10px; background:var(--panel-2); cursor:pointer;}
+    .drop-note{color:var(--faint); font-size:11px;}
+    .expand-toggle{grid-column:1/-1;}
+    .expand-toggle button{width:100%; background:transparent; border-color:var(--line); color:var(--muted);}
+    .del-btn{color:var(--pass); border-color:rgba(239,106,93,.3);}
+    @media (max-width:720px){ .tools-grid{grid-template-columns:1fr;} }
+
+    /* ---- TOURNAMENT MODE ---- */
+    .trn{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:20px;}
+    .trn-head{grid-column:1/-1; display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:2px;}
+    .trn-head h2{margin:0; font-size:16px;}
+    .trn-arena{display:grid; grid-template-columns:1fr 54px 1fr; gap:14px; align-items:stretch;}
+    .trn-card{border:1px solid var(--line-2); border-radius:var(--radius); overflow:hidden; background:var(--panel-2); cursor:pointer; padding:0; text-align:left; transition:border-color .12s, transform .08s;}
+    .trn-card:hover{border-color:var(--accent); transform:translateY(-3px);}
+    .trn-card img{width:100%; aspect-ratio:4/3; object-fit:cover; display:block;}
+    .trn-card .n{padding:12px 14px 2px; font-size:20px; font-weight:750;}
+    .trn-card .m{padding:0 14px 14px; color:var(--muted); font-size:12px;}
+    .trn-vs{display:grid; place-items:center; color:var(--faint); font-weight:800; font-size:15px;}
+    .trn-foot{grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; margin-top:6px; color:var(--muted); font-size:13px;}
+    .standings{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; align-self:start;}
+    .standings h3{margin:0 0 10px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--faint);}
+    .st-row{display:grid; grid-template-columns:22px 1fr auto; gap:8px; align-items:center; padding:6px 0; border-top:1px solid var(--line); font-size:13px;}
+    .st-row:first-of-type{border-top:0;}
+    .st-row .st-rank{color:var(--faint); font-weight:700;}
+    .st-row .st-fit{color:var(--accent-2); font-weight:700;}
+    @media (max-width:900px){ .trn{grid-template-columns:1fr;} }
+
+    /* ---- QUADRANT MODE ---- */
+    .quad-controls{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:14px; color:var(--muted); font-size:13px;}
+    .quad-wrap{display:grid; grid-template-columns:34px 1fr; gap:6px;}
+    .quad-ylab{writing-mode:vertical-rl; transform:rotate(180deg); text-align:center; color:var(--muted); font-size:12px; font-weight:600; align-self:center;}
+    .plot{position:relative; aspect-ratio:1/1; max-height:70vh; background:linear-gradient(var(--panel),var(--panel)); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; touch-action:none;}
+    .plot .grid-line{position:absolute; background:var(--line);}
+    .plot .gl-v{width:1px; top:0; bottom:0;} .plot .gl-h{height:1px; left:0; right:0;}
+    .plot .qlabel{position:absolute; color:var(--faint); font-size:10px;}
+    .qtile{position:absolute; width:58px; transform:translate(-50%,50%); cursor:grab; text-align:center; touch-action:none;}
+    .qtile.drag{cursor:grabbing; z-index:5;}
+    .qtile img{width:52px; height:52px; object-fit:cover; border-radius:10px; border:2px solid var(--line-2); display:block; margin:0 auto; box-shadow:0 4px 12px rgba(0,0,0,.4); pointer-events:none;}
+    .qtile span{display:block; margin-top:3px; font-size:10px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;}
+    .quad-xlab{grid-column:2; text-align:center; color:var(--muted); font-size:12px; font-weight:600; margin-top:6px;}
+
+    /* ---- TIERS MODE ---- */
+    .tiers{display:grid; gap:10px;}
+    .tier{display:grid; grid-template-columns:64px 1fr; gap:10px; align-items:stretch; background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; min-height:96px;}
+    .tier-badge{display:grid; place-items:center; font-weight:800; font-size:24px; color:#12131a;}
+    .tier.S .tier-badge{background:linear-gradient(150deg,#ffe08a,var(--gold));}
+    .tier.A .tier-badge{background:linear-gradient(150deg,#ffd0a0,#f0a84a);}
+    .tier.B .tier-badge{background:linear-gradient(150deg,#c9f0d6,var(--keep));}
+    .tier.C .tier-badge{background:linear-gradient(150deg,#cfe0ff,#7ba0e0);}
+    .tier.D .tier-badge{background:linear-gradient(150deg,#d8d8e0,#9aa1b2);}
+    .tier-drop{display:flex; flex-wrap:wrap; gap:8px; padding:10px; align-content:flex-start;}
+    .tier-drop.over{background:var(--panel-2); outline:2px dashed var(--accent); outline-offset:-6px;}
+    .tcard{width:78px; border-radius:10px; overflow:hidden; background:var(--panel-2); border:1px solid var(--line); cursor:grab;}
+    .tcard img{width:100%; aspect-ratio:3/4; object-fit:cover; display:block; pointer-events:none;}
+    .tcard .tn{padding:4px 6px; font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .tier-hint{color:var(--faint); font-size:12px; margin:0 0 12px;}
+
+    .empty{background:var(--panel); border:1px dashed var(--line-2); border-radius:var(--radius); padding:44px 26px; text-align:center;}
+    .empty h3{margin:0 0 8px; font-size:19px;}
+    .empty p{margin:0 auto 18px; color:var(--muted); max-width:460px;}
+    .empty ol{text-align:left; max-width:420px; margin:0 auto 20px; color:var(--muted); font-size:13px; padding-left:18px;}
+    .empty .acts{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+    .export-box{width:100%; min-height:150px; font-family:ui-monospace,Menlo,monospace; font-size:12px; border-radius:10px;}
+
+    .overlay{position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; padding:26px; background:rgba(4,6,10,.72);}
+    .overlay.open{display:flex;}
+    .modal{background:var(--panel); border:1px solid var(--line-2); border-radius:18px; box-shadow:var(--shadow); width:min(940px,96vw); max-height:92vh; overflow:auto; padding:22px;}
+    .modal-h{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:4px;}
+    .modal-h h3{margin:0; font-size:19px;}
+    .modal-sub{color:var(--muted); font-size:13px; margin:0 0 16px;}
+    .cmp-cols{display:grid; gap:14px;}
+    .cmp-col{border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; background:var(--panel-2);}
+    .cmp-col img{width:100%; aspect-ratio:16/10; object-fit:cover; display:block;}
+    .cmp-b{padding:12px 14px;}
+    .cmp-b h4{margin:0 0 2px; font-size:17px;}
+    .cmp-b .cf{color:var(--accent-2); font-weight:750; font-size:14px; margin-bottom:12px;}
+    .cmp-m{margin-bottom:9px;}
+    .cmp-m .h{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:3px;}
+    .cmp-m.win .h strong{color:var(--accent-2);}
+    .lightbox{position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; padding:28px; background:rgba(2,3,6,.92);}
+    .lightbox.open{display:flex;}
+    .lightbox img{max-width:92vw; max-height:86vh; object-fit:contain; border-radius:12px;}
+    .lb-close{position:fixed; top:18px; right:18px;}
+    .toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(18px); z-index:60; background:var(--raise); border:1px solid var(--line-2); color:var(--ink); padding:11px 18px; border-radius:999px; font-size:13px; box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .2s,transform .2s;}
+    .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+    @media (max-width:1080px){ .layout{grid-template-columns:1fr;} .rail{position:static; max-height:none; order:2;} .main{order:1;} .podium{grid-template-columns:1fr;} }
+    @media (max-width:720px){ .toolbar{grid-template-columns:1fr 1fr;} .toolbar input{grid-column:1/-1;} .row{grid-template-columns:40px 1fr;} .thumb{display:none;} .row-metrics{grid-column:1/-1;} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">↑</div>
+        <div><h1>Visual Ranker</h1><p>One board, four ways to rank it — switch modes below.</p></div>
+      </div>
+      <div class="top-actions">
+        <button id="photosBtn" class="primary" title="Fetch a photo by name from Wikipedia for items without one">Get photos</button>
+        <button id="exportBtn">Export</button>
+        <button id="resetBtn" class="ghost" title="Load the sample set">Sample</button>
+        <button id="clearBtn" class="ghost" title="Remove all items">Clear</button>
+      </div>
+    </div>
+
+    <div class="boards" id="boards"></div>
+
+    <div class="modebar">
+      <div class="modeseg" id="modeseg">
+        <button data-a="mode" data-mode="list"><span class="ic">≡</span>List</button>
+        <button data-a="mode" data-mode="tournament"><span class="ic">⚔</span>Tournament</button>
+        <button data-a="mode" data-mode="quadrant"><span class="ic">⊹</span>Quadrant</button>
+        <button data-a="mode" data-mode="tiers"><span class="ic">▤</span>Tiers</button>
+      </div>
+      <span class="mode-desc" id="modeDesc"></span>
+    </div>
+
+    <div class="layout">
+      <aside class="rail">
+        <section class="card">
+          <div class="card-h"><h2>Add item</h2></div>
+          <div class="body">
+            <form class="stack" id="addForm">
+              <input id="newName" required placeholder="Name">
+              <input id="newTags" placeholder="Tags (comma separated)">
+              <textarea id="newNote" rows="2" placeholder="Note — why it's in the running"></textarea>
+              <button class="primary" type="submit">Add to board</button>
+            </form>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-h"><h2>Rubric &amp; weights</h2></div>
+          <div class="body">
+            <p class="hint">Drag a weight to re-rank instantly. These criteria power every mode.</p>
+            <div id="criteria"></div>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-h"><h2>Tags</h2></div>
+          <div class="body"><div class="tags" id="tags"></div></div>
+        </section>
+        <section class="card">
+          <div class="card-h"><h2>Boards</h2></div>
+          <div class="body">
+            <form id="boardForm" style="display:grid;gap:8px">
+              <input id="boardName" placeholder="New board name">
+              <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+                <select id="boardTemplate"><option value="blank">Blank</option><option value="current">Copy current</option><option value="sample">Sample set</option></select>
+                <button class="primary" type="submit">Create</button>
+              </div>
+            </form>
+          </div>
+        </section>
+        <section class="card" id="exportCard" style="display:none">
+          <div class="card-h"><h2>Portable data</h2></div>
+          <div class="body">
+            <textarea class="export-box" id="exportText"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px"><button id="copyBtn">Copy</button><button id="importBtn">Import</button></div>
+          </div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="toolbar" id="toolbar">
+          <input id="search" placeholder="Filter by name, tag, or note">
+          <select id="statusFilter"><option value="all">All status</option><option value="keep">Keep</option><option value="maybe">Maybe</option><option value="review">Review</option><option value="pass">Pass</option></select>
+          <select id="sort"></select>
+          <button id="compareBtn" disabled>Compare (0)</button>
+        </div>
+        <div id="stage"></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="overlay" id="cmpOverlay">
+    <div class="modal">
+      <div class="modal-h"><h3>Side by side</h3><button class="ghost" data-x="cmp">Close</button></div>
+      <p class="modal-sub" id="cmpSub"></p>
+      <div id="cmpBody"></div>
+    </div>
+  </div>
+  <div class="lightbox" id="lightbox" aria-hidden="true"><button class="lb-close" id="lbClose">Close</button><img id="lbImg" alt=""></div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    "use strict";
+    const STORAGE_KEY = "visual-ranker-studio-v1";   // shares data with studio.html
+    const MODE_KEY = "visual-ranker-mode";
+
+    const sampleCriteria = () => ([
+      { id:"scenery", label:"Scenery", weight:30 }, { id:"value", label:"Value", weight:20 },
+      { id:"food", label:"Food", weight:25 }, { id:"ease", label:"Ease", weight:25 }
+    ]);
+    const sampleItems = [
+      { name:"Kyoto", status:"keep", tags:["asia","culture"], note:"Temples, gardens, unmatched food scene.", s:{scenery:8.8,value:6.2,food:9.2,ease:6.4} },
+      { name:"Lisbon", status:"keep", tags:["europe","coast"], note:"Great value, walkable, sunny.", s:{scenery:8.0,value:8.4,food:8.2,ease:8.1} },
+      { name:"Cape Town", status:"keep", tags:["africa","coast"], note:"Dramatic scenery, needs planning.", s:{scenery:9.4,value:7.6,food:7.8,ease:5.2} },
+      { name:"Oaxaca", status:"maybe", tags:["americas","food"], note:"Food-first pick, rich culture.", s:{scenery:7.2,value:8.6,food:9.4,ease:6.0} },
+      { name:"Reykjavik", status:"maybe", tags:["europe","nature"], note:"Otherworldly landscapes, pricey.", s:{scenery:9.3,value:4.4,food:6.6,ease:6.2} },
+      { name:"Ljubljana", status:"review", tags:["europe","green"], note:"Underrated, calm, affordable.", s:{scenery:7.6,value:8.2,food:7.4,ease:7.6} },
+      { name:"Queenstown", status:"review", tags:["oceania","nature"], note:"Adventure and lakes, far to reach.", s:{scenery:9.2,value:5.0,food:6.8,ease:5.0} },
+      { name:"Marrakesh", status:"review", tags:["africa","market"], note:"Sensory, vibrant, great value.", s:{scenery:7.4,value:8.4,food:8.0,ease:6.4} }
+    ];
+
+    let state = loadState();
+    let mode = localStorage.getItem(MODE_KEY) || "list";
+    let selected = new Set();
+    let expanded = new Set();
+    let pair = [];               // tournament current pair
+    let tCriterion = "overall";  // tournament judging axis
+    let quad = { x:null, y:null };
+    let drag = null;             // quadrant drag state
+
+    function uid(p){ return p+"-"+Date.now().toString(36)+"-"+Math.floor(Math.random()*1e6).toString(36); }
+    function slug(v){ return String(v).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,""); }
+    function round1(v){ return Math.round(Number(v||0)*10)/10; }
+    function clampScore(v){ return Math.max(0,Math.min(10,Math.round(v*10)/10)); }
+    function f1(v){ return Number(v||0).toFixed(1); }
+
+    function sampleBoard(name="Sample: Destinations"){ const criteria=sampleCriteria(); return { id:uid("b"), name, criteria, candidates:sampleItems.map(it=>normCand({name:it.name,status:it.status,tags:it.tags,note:it.note,scores:it.s},criteria)) }; }
+    function blankBoard(name="Untitled"){ return { id:uid("b"), name, criteria:[{id:"rating",label:"Rating",weight:30}], candidates:[] }; }
+    function normCand(c,criteria){ const scores={}; criteria.forEach(cr=>{const v=c.scores&&c.scores[cr.id]; scores[cr.id]=(v==null)?5:clampScore(Number(v));}); return { id:c.id||uid("i"), name:String(c.name||"Untitled"), status:["keep","maybe","pass","review"].includes(c.status)?c.status:"review", tags:Array.isArray(c.tags)?c.tags:[], note:c.note||"", images:Array.isArray(c.images)?c.images.map(normImg).filter(Boolean):[], scores, tier:c.tier||null, wikiTried:Boolean(c.wikiTried), compareCount:Number(c.compareCount||0) }; }
+    function normImg(i){ if(!i) return null; if(typeof i==="string") return {url:i,source:i,caption:""}; if(!i.url) return null; return {url:i.url,source:i.source||i.url,caption:i.caption||""}; }
+    function normBoard(b){ if(!b) return null; const criteria=Array.isArray(b.criteria)&&b.criteria.length?b.criteria.map(c=>({id:c.id||slug(c.label)||uid("c"),label:c.label||"Criterion",weight:Number(c.weight||0)})):[{id:"rating",label:"Rating",weight:30}]; return { id:b.id||uid("b"), name:String(b.name||"Untitled").trim()||"Untitled", criteria, candidates:Array.isArray(b.candidates)?b.candidates.map(c=>normCand(c,criteria)):[] }; }
+    function loadState(){ const s=localStorage.getItem(STORAGE_KEY); if(s){ try{ const p=JSON.parse(s); if(Array.isArray(p.boards)&&p.boards.length){ const boards=p.boards.map(normBoard).filter(Boolean); const activeId=boards.some(b=>b.id===p.activeId)?p.activeId:boards[0].id; return {boards,activeId}; } }catch(e){} } const b=sampleBoard(); return {boards:[b],activeId:b.id}; }
+    function board(){ let b=state.boards.find(x=>x.id===state.activeId); if(!b){b=state.boards[0]; state.activeId=b.id;} return b; }
+    function save(){ try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }catch(e){ toast("Storage full — export or remove images."); } }
+
+    function fit(c,b=board()){ const t=b.criteria.reduce((s,x)=>s+Number(x.weight||0),0)||1; const w=b.criteria.reduce((s,x)=>s+Number(c.scores[x.id]||0)*Number(x.weight||0),0); return round1(w/t); }
+    function sorted(opts={}){ const b=board(); const q=(document.getElementById("search").value||"").trim().toLowerCase(); const st=document.getElementById("statusFilter").value; const sb=document.getElementById("sort").value; let list=[...b.candidates]; if(q) list=list.filter(c=>[c.name,c.note,...(c.tags||[])].join(" ").toLowerCase().includes(q)); if(st!=="all") list=list.filter(c=>c.status===st); list.sort((x,y)=>{ if(sb==="name") return x.name.localeCompare(y.name); if(!sb||sb==="fit") return fit(y,b)-fit(x,b); return Number(y.scores[sb]||0)-Number(x.scores[sb]||0); }); if(opts.limit) list=list.slice(0,opts.limit); return list; }
+
+    function hue(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))%360; return h; }
+    function placeholder(name){ const ini=String(name).trim().split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase()||"?"; const h=hue(name||"x"); const svg=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='hsl(${h},32%,30%)'/><stop offset='1' stop-color='hsl(${(h+45)%360},38%,16%)'/></linearGradient></defs><rect width='300' height='400' fill='url(#g)'/><text x='150' y='222' font-family='Inter,sans-serif' font-size='120' font-weight='800' fill='rgba(255,255,255,.82)' text-anchor='middle'>${ini}</text></svg>`; return "data:image/svg+xml;base64,"+btoa(svg); }
+    function img0(c){ return (c.images&&c.images[0])?c.images[0].url:placeholder(c.name); }
+    function esc(v){ return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;"); }
+    function imgErr(c){ return `onerror="this.onerror=null;this.src='${esc(placeholder(c.name))}'"`; }
+
+    /* ---------- render ---------- */
+    const MODE_DESC = {
+      list:"Ranked leaderboard by weighted fit. Edit scores, statuses and images.",
+      tournament:"Pick a winner in each matchup — scores adjust Elo-style. No sliders needed.",
+      quadrant:"Plot items on two criteria. Drag a tile to re-score it on both axes.",
+      tiers:"Drag items into S–D tiers. Suggested placement comes from weighted fit."
+    };
+    function render(){
+      renderBoards(); renderModes(); renderCriteria(); renderTags(); renderSort(); renderCompareBtn(); renderStage();
+    }
+    function renderBoards(){ const el=document.getElementById("boards"); const single=state.boards.length<=1; el.innerHTML=state.boards.map(b=>`<button class="board-chip ${b.id===state.activeId?"active":""}" data-a="board" data-id="${esc(b.id)}"><span>${esc(b.name)}</span><span class="count">${b.candidates.length}</span>${single?"":`<span class="chip-x" data-a="board-del" data-id="${esc(b.id)}" title="Delete board">×</span>`}</button>`).join(""); }
+    function renderModes(){ document.querySelectorAll("#modeseg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===mode)); document.getElementById("modeDesc").textContent=MODE_DESC[mode]||""; document.getElementById("toolbar").style.display=(mode==="list")?"grid":"none"; }
+    function renderCriteria(){
+      const b=board(); const el=document.getElementById("criteria"); const canRm=b.criteria.length>1;
+      el.innerHTML=b.criteria.map(c=>`<div class="crit"><div class="crit-top"><input class="crit-label" data-a="crit-name" data-cid="${esc(c.id)}" value="${esc(c.label)}">${canRm?`<button class="crit-x" data-a="crit-del" data-cid="${esc(c.id)}">×</button>`:`<span></span>`}</div><div class="crit-bot"><input type="range" min="0" max="50" step="1" value="${c.weight}" data-a="crit-w" data-cid="${esc(c.id)}"><strong>${c.weight}</strong></div></div>`).join("")+`<form class="crit-add" id="critAdd"><input id="critAddIn" placeholder="Add criterion"><button class="primary" type="submit">Add</button></form>`;
+      document.getElementById("critAdd").addEventListener("submit",e=>{ e.preventDefault(); const inp=document.getElementById("critAddIn"); const label=inp.value.trim(); if(!label) return; const b=board(); const id=(slug(label)||"c")+"-"+Math.floor(Math.random()*1e4).toString(36); b.criteria.push({id,label,weight:20}); b.candidates.forEach(c=>c.scores[id]=5); inp.value=""; save(); render(); });
+    }
+    function renderTags(){ const b=board(); const tags=[...new Set(b.candidates.flatMap(c=>c.tags||[]))].sort(); document.getElementById("tags").innerHTML=tags.length?tags.slice(0,24).map(t=>`<button class="tag" data-a="tagf" data-t="${esc(t)}">${esc(t)}</button>`).join(""):`<span class="hint" style="margin:0">No tags yet.</span>`; }
+    function renderSort(){ const b=board(); const el=document.getElementById("sort"); const prev=el.value; el.innerHTML=`<option value="fit">Sort: fit</option>`+b.criteria.map(c=>`<option value="${esc(c.id)}">Sort: ${esc(c.label)}</option>`).join("")+`<option value="name">Sort: name</option>`; if([...el.options].some(o=>o.value===prev)) el.value=prev; }
+    function renderCompareBtn(){ const el=document.getElementById("compareBtn"); el.textContent=`Compare (${selected.size})`; el.disabled=selected.size<2; }
+
+    function renderStage(){
+      const b=board(); const stage=document.getElementById("stage");
+      if(!b.candidates.length){ stage.innerHTML=emptyHTML(); return; }
+      if(mode==="list") stage.innerHTML=podiumHTML()+listHTML();
+      else if(mode==="tournament") stage.innerHTML=tournamentHTML();
+      else if(mode==="quadrant") stage.innerHTML=quadrantHTML();
+      else if(mode==="tiers") stage.innerHTML=tiersHTML();
+    }
+
+    /* ----- list ----- */
+    function podiumHTML(){ const b=board(); const top=sorted().filter(c=>c.status!=="pass").slice(0,3); if(!top.length) return ""; return `<div class="podium">`+top.map((c,i)=>`<article class="pod p${i}"><div class="pod-img"><img src="${esc(img0(c))}" alt="${esc(c.name)}" referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0" ${imgErr(c)}><span class="medal">${i+1}</span><span class="pod-score">${f1(fit(c,b))}</span></div><div class="pod-body"><h3>${esc(c.name)}</h3><p>${esc(c.note||("Top "+(i+1)))}</p></div></article>`).join("")+`</div>`; }
+    function listHTML(){
+      const b=board(); const items=sorted(); if(!items.length) return `<div class="empty"><h3>No matches</h3><p>Nothing matches the current filters.</p></div>`;
+      return `<div class="list">`+items.map((c,i)=>{ const open=expanded.has(c.id);
+        const bars=b.criteria.map(cr=>{const v=Number(c.scores[cr.id]||0); return `<div class="bar"><span>${esc(cr.label)}</span><div class="track"><div class="fill" style="width:${v*10}%"></div></div><strong>${f1(v)}</strong></div>`;}).join("");
+        const sliders=b.criteria.map(cr=>`<label class="metric"><span>${esc(cr.label)}</span><input type="range" min="0" max="10" step="0.1" value="${c.scores[cr.id]}" data-a="score" data-id="${esc(c.id)}" data-cid="${esc(cr.id)}"><strong>${f1(c.scores[cr.id])}</strong></label>`).join("");
+        const n=(c.images||[]).length;
+        return `<article class="row ${i<3?"top":""} ${selected.has(c.id)?"selected":""} ${open?"expanded":""}" data-drop="${esc(c.id)}"><div class="rank-badge">${i+1}</div><div class="thumb"><img src="${esc(img0(c))}" alt="${esc(c.name)}" referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0" ${imgErr(c)}>${n>1?`<span class="thumb-count">${n}</span>`:""}</div><div class="row-main"><div class="row-title"><h3>${esc(c.name)}</h3><span class="chip ${c.status}">${esc(c.status)}</span><label class="sel"><input type="checkbox" data-a="sel" data-id="${esc(c.id)}" ${selected.has(c.id)?"checked":""}>compare</label></div>${c.note?`<p class="row-note">${esc(c.note)}</p>`:""}${(c.tags||[]).length?`<div class="row-tags">${c.tags.map(t=>`<button class="tag" data-a="tagf" data-t="${esc(t)}">${esc(t)}</button>`).join("")}</div>`:""}</div><div class="row-metrics"><div class="fit"><span class="num">${f1(fit(c,b))}</span><span class="lab">weighted fit</span></div><div class="bars">${bars}</div></div><div class="row-tools"><div class="tools-grid"><div><div class="status-set"><button data-a="status" data-id="${esc(c.id)}" data-status="keep" class="${c.status==="keep"?"active":""}">Keep</button><button data-a="status" data-id="${esc(c.id)}" data-status="maybe" class="${c.status==="maybe"?"active":""}">Maybe</button><button data-a="status" data-id="${esc(c.id)}" data-status="pass" class="${c.status==="pass"?"active":""}">Pass</button></div>${sliders}</div><div><div class="img-tools"><input placeholder="Paste image URL" data-url="${esc(c.id)}"><button data-a="addurl" data-id="${esc(c.id)}">Add</button><label class="up">Upload<input type="file" accept="image/*" multiple style="display:none" data-a="upload" data-id="${esc(c.id)}"></label></div><p class="drop-note">Drag &amp; drop images onto this row.</p><div style="display:flex;gap:8px;margin-top:10px"><a href="https://www.google.com/search?tbm=isch&q=${encodeURIComponent(c.name)}" target="_blank" rel="noreferrer" style="flex:1"><button style="width:100%">Image search</button></a><button class="del-btn" data-a="del" data-id="${esc(c.id)}">Delete</button></div></div></div></div><div class="expand-toggle"><button data-a="expand" data-id="${esc(c.id)}">${open?"Hide editor ▲":"Edit scores, status &amp; images ▼"}</button></div></article>`;
+      }).join("")+`</div>`;
+    }
+
+    /* ----- tournament ----- */
+    function pickPair(){ const b=board(); const pool=b.candidates.filter(c=>c.status!=="pass"); if(pool.length<2) return []; const a=[...pool].sort((x,y)=>(x.compareCount||0)-(y.compareCount||0))[0]; const rest=pool.filter(c=>c.id!==a.id).sort((x,y)=>Math.abs(fit(x)-fit(a))-Math.abs(fit(y)-fit(a))); const near=rest.slice(0,Math.min(3,rest.length)); const bb=near[Math.floor(Math.random()*near.length)]; return Math.random()<.5?[a,bb]:[bb,a]; }
+    function eloUpdate(win,lose,key){ const b=board(); const keys=key==="overall"?b.criteria.map(c=>c.id):[key]; const K=0.5; keys.forEach(k=>{ const a=Number(win.scores[k]??5), bb=Number(lose.scores[k]??5); const expA=1/(1+Math.pow(10,(bb-a)/4)); win.scores[k]=clampScore(a+K*(1-expA)); lose.scores[k]=clampScore(bb-K*(1-expA)); }); }
+    function tournamentHTML(){
+      const b=board();
+      if(b.candidates.filter(c=>c.status!=="pass").length<2) return `<div class="empty"><h3>Need two items</h3><p>Add at least two non-passed items to run matchups.</p></div>`;
+      if(!pair.length || pair.some(p=>!board().candidates.find(c=>c.id===p.id))) pair=pickPair();
+      const [x,y]=pair; const lab=tCriterion==="overall"?"overall fit":(b.criteria.find(c=>c.id===tCriterion)||{}).label;
+      const val=c=> tCriterion==="overall"?f1(fit(c,b))+" fit":f1(c.scores[tCriterion])+" / 10";
+      const critOpts=`<option value="overall">Overall</option>`+b.criteria.map(c=>`<option value="${esc(c.id)}" ${c.id===tCriterion?"selected":""}>${esc(c.label)}</option>`).join("");
+      const standings=[...b.candidates].filter(c=>c.status!=="pass").sort((a,c)=>fit(c,b)-fit(a,b)).slice(0,8);
+      const card=c=>`<button class="trn-card" data-a="tpick" data-id="${esc(c.id)}"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer"><div class="n">${esc(c.name)}</div><div class="m">${esc(val(c))} · ${c.compareCount||0} matchups</div></button>`;
+      return `<div class="trn"><div class="trn-head"><h2>Which is better?</h2><span class="mode-desc">Judging on</span><select data-a="tcrit" style="min-height:34px">${critOpts}</select></div>
+        <div><div class="trn-arena">${card(x)}<div class="trn-vs">VS</div>${card(y)}</div><div class="trn-foot"><span>Picks feed the same scores every mode reads.</span><button data-a="tskip">Skip pair</button></div></div>
+        <aside class="standings"><h3>Standings</h3>${standings.map((c,i)=>`<div class="st-row"><span class="st-rank">${i+1}</span><span>${esc(c.name)}</span><span class="st-fit">${f1(fit(c,b))}</span></div>`).join("")}</aside></div>`;
+    }
+    function tournamentPick(id){ const [x,y]=pair; if(!x||!y) return; const win=id===x.id?x:y, lose=id===x.id?y:x; eloUpdate(win,lose,tCriterion); win.compareCount=(win.compareCount||0)+1; lose.compareCount=(lose.compareCount||0)+1; save(); pair=pickPair(); renderStage(); renderBoards(); }
+
+    /* ----- quadrant ----- */
+    function ensureQuad(){ const b=board(); const ids=b.criteria.map(c=>c.id); if(!ids.includes(quad.x)) quad.x=ids[0]; if(!ids.includes(quad.y)) quad.y=ids[1]||ids[0]; }
+    function quadrantHTML(){
+      const b=board(); ensureQuad();
+      const opts=sel=>b.criteria.map(c=>`<option value="${esc(c.id)}" ${c.id===sel?"selected":""}>${esc(c.label)}</option>`).join("");
+      const xL=(b.criteria.find(c=>c.id===quad.x)||{}).label, yL=(b.criteria.find(c=>c.id===quad.y)||{}).label;
+      const items=b.candidates.filter(c=>c.status!=="pass");
+      const gl=[2,4,6,8].map(n=>`<div class="grid-line gl-v" style="left:${n*10}%"></div><div class="grid-line gl-h" style="top:${n*10}%"></div>`).join("");
+      const tiles=items.map(c=>{ const xv=Number(c.scores[quad.x]||0), yv=Number(c.scores[quad.y]||0); return `<div class="qtile" data-qid="${esc(c.id)}" style="left:${xv*10}%; bottom:${yv*10}%"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><span>${esc(c.name)}</span></div>`; }).join("");
+      return `<div class="quad-controls"><label>X axis: <select data-a="quadx" style="min-height:34px">${opts(quad.x)}</select></label><label>Y axis: <select data-a="quady" style="min-height:34px">${opts(quad.y)}</select></label><span class="mode-desc">Drag a tile to re-score it on both axes.</span></div>
+        <div class="quad-wrap"><div class="quad-ylab">${esc(yL)} →</div><div class="plot" id="plot">${gl}<span class="qlabel" style="left:6px;bottom:6px">0,0</span><span class="qlabel" style="right:6px;top:6px">10,10</span>${tiles}</div><div class="quad-xlab">${esc(xL)} →</div></div>`;
+    }
+
+    /* ----- tiers ----- */
+    const TIERS=["S","A","B","C","D"];
+    function fitTier(v){ return v>=8.5?"S":v>=7.5?"A":v>=6.5?"B":v>=5?"C":"D"; }
+    function tierOf(c){ return c.tier||fitTier(fit(c)); }
+    function tiersHTML(){
+      const b=board(); const items=b.candidates.filter(c=>c.status!=="pass");
+      const byTier={}; TIERS.forEach(t=>byTier[t]=[]); items.forEach(c=>{ (byTier[tierOf(c)]||byTier.D).push(c); });
+      TIERS.forEach(t=>byTier[t].sort((x,y)=>fit(y,b)-fit(x,b)));
+      return `<p class="tier-hint">Cards start where their weighted fit suggests. Drag any card to a new tier to override; it stays put after.</p><div class="tiers">`+TIERS.map(t=>`<div class="tier ${t}"><div class="tier-badge">${t}</div><div class="tier-drop" data-tier="${t}">${byTier[t].map(c=>`<div class="tcard" draggable="true" data-tid="${esc(c.id)}"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><div class="tn">${esc(c.name)} · ${f1(fit(c,b))}</div></div>`).join("")}</div></div>`).join("")+`</div>`;
+    }
+
+    function emptyHTML(){ return `<div class="empty"><h3>This board is empty</h3><p>Add options against a rubric you control, then try each mode.</p><ol><li>Add items on the left.</li><li>Tune the rubric weights.</li><li>Rank with List, Tournament, Quadrant or Tiers.</li></ol><div class="acts"><button class="primary" data-a="loadsample">Load sample set</button><button data-a="focusadd">Add first item</button></div></div>`; }
+
+    /* ---------- side by side ---------- */
+    function openCompare(){ const b=board(); const items=[...selected].map(id=>b.candidates.find(c=>c.id===id)).filter(Boolean).slice(0,3); if(items.length<2){ toast("Select 2–3 items to compare."); return; } document.getElementById("cmpSub").textContent=`Comparing ${items.map(c=>c.name).join(", ")} across ${b.criteria.length} criteria.`; const metrics=b.criteria.map(cr=>({cr,best:Math.max(...items.map(c=>Number(c.scores[cr.id]||0)))})); document.getElementById("cmpBody").innerHTML=`<div class="cmp-cols" style="grid-template-columns:repeat(${items.length},1fr)">`+items.map(c=>{ const rows=metrics.map(({cr,best})=>{const v=Number(c.scores[cr.id]||0); const win=v>=best&&best>0; return `<div class="cmp-m ${win?"win":""}"><div class="h"><span>${esc(cr.label)}</span><strong>${f1(v)}</strong></div><div class="track"><div class="fill" style="width:${v*10}%"></div></div></div>`;}).join(""); return `<div class="cmp-col"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer"><div class="cmp-b"><h4>${esc(c.name)}</h4><div class="cf">${f1(fit(c,b))} weighted fit</div>${rows}</div></div>`; }).join("")+`</div>`; document.getElementById("cmpOverlay").classList.add("open"); }
+
+    /* ---------- helpers ---------- */
+    function toast(m){ const el=document.getElementById("toast"); el.textContent=m; el.classList.add("show"); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("show"),2600); }
+    function findC(id){ return board().candidates.find(c=>c.id===id); }
+    function addImgs(c,entries){ c.images=[...(c.images||[]),...entries.map(normImg).filter(Boolean)]; save(); render(); }
+    function fileToDataUrl(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>{ const im=new Image(); im.onload=()=>{ const max=900; let w=im.width,h=im.height; if(w>max||h>max){const k=Math.min(max/w,max/h);w=Math.round(w*k);h=Math.round(h*k);} const cv=document.createElement("canvas");cv.width=w;cv.height=h;cv.getContext("2d").drawImage(im,0,0,w,h); try{res(cv.toDataURL("image/jpeg",.82));}catch(e){res(r.result);} }; im.onerror=()=>res(r.result); im.src=r.result; }; r.onerror=rej; r.readAsDataURL(file); }); }
+    async function handleFiles(c,files){ const imgs=[...files].filter(f=>f.type.startsWith("image/")); if(!imgs.length) return; const entries=[]; for(const f of imgs){ entries.push({url:await fileToDataUrl(f),source:"upload",caption:f.name}); } addImgs(c,entries); toast(`Added ${entries.length} image${entries.length>1?"s":""}.`); }
+    function openLB(id,idx){ const c=findC(id); const im=document.getElementById("lbImg"); im.src=(c&&c.images&&c.images[Number(idx)])?c.images[Number(idx)].url:placeholder(c?c.name:""); im.alt=c?c.name:""; document.getElementById("lightbox").classList.add("open"); }
+    function closeLB(){ document.getElementById("lightbox").classList.remove("open"); document.getElementById("lbImg").src=""; }
+    function setMode(m){ mode=m; localStorage.setItem(MODE_KEY,m); selected.clear(); render(); }
+
+    /* ---------- photos (Wikipedia by name) ---------- */
+    async function fetchWikiImage(c){
+      try{
+        const title=encodeURIComponent(String(c.name).trim().replace(/\s+/g,"_"));
+        const r=await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`,{headers:{accept:"application/json"}});
+        if(!r.ok) return false;
+        const d=await r.json();
+        let src=(d.thumbnail&&d.thumbnail.source)||(d.originalimage&&d.originalimage.source)||null;
+        if(!src) return false;
+        const page=d.content_urls&&d.content_urls.desktop?d.content_urls.desktop.page:src;
+        c.images=[...(c.images||[]),{url:src,source:page,caption:"Wikipedia"}];
+        return true;
+      }catch(e){ return false; }
+    }
+    async function autoPhotos(){
+      const b=board(); let added=0;
+      for(const c of b.candidates){ if((c.images&&c.images.length)||c.wikiTried) continue; c.wikiTried=true; if(await fetchWikiImage(c)) added++; }
+      if(added){ save(); renderStage(); renderBoards(); }
+    }
+    async function fetchAllPhotos(){
+      const btn=document.getElementById("photosBtn"); const b=board();
+      const targets=b.candidates.filter(c=>!(c.images&&c.images.length));
+      if(!targets.length){ toast("Every item already has a photo."); return; }
+      btn.disabled=true; btn.textContent="Fetching…";
+      let added=0; for(const c of targets){ c.wikiTried=true; if(await fetchWikiImage(c)) added++; }
+      save(); render();
+      btn.disabled=false; btn.textContent="Get photos";
+      toast(added?`Added ${added} photo${added>1?"s":""} from Wikipedia.`:"No matching Wikipedia photos found — upload your own.");
+    }
+
+    /* ---------- events ---------- */
+    document.body.addEventListener("click",e=>{
+      const t=e.target.closest("[data-a],[data-x]"); if(!t) return; const a=t.dataset.a,x=t.dataset.x,id=t.dataset.id;
+      if(x==="cmp") document.getElementById("cmpOverlay").classList.remove("open");
+      else if(a==="mode") setMode(t.dataset.mode);
+      else if(a==="board"){ state.activeId=id; selected.clear(); expanded.clear(); pair=[]; save(); render(); }
+      else if(a==="board-del"){ e.stopPropagation(); const b=state.boards.find(x=>x.id===id); if(!b||state.boards.length<=1) return; if(!confirm(`Delete board "${b.name}"?`)) return; state.boards=state.boards.filter(x=>x.id!==id); if(state.activeId===id) state.activeId=state.boards[0].id; selected.clear(); save(); render(); }
+      else if(a==="crit-del"){ const b=board(); if(b.criteria.length<=1) return; b.criteria=b.criteria.filter(c=>c.id!==t.dataset.cid); b.candidates.forEach(c=>delete c.scores[t.dataset.cid]); save(); render(); }
+      else if(a==="status"){ const c=findC(id); if(c){ c.status=t.dataset.status; save(); render(); } }
+      else if(a==="expand"){ if(expanded.has(id)) expanded.delete(id); else expanded.add(id); renderStage(); }
+      else if(a==="del"){ const c=findC(id); if(!c||!confirm(`Delete "${c.name}"?`)) return; const b=board(); b.candidates=b.candidates.filter(y=>y.id!==id); selected.delete(id); expanded.delete(id); save(); render(); }
+      else if(a==="addurl"){ const inp=document.querySelector(`[data-url="${CSS.escape(id)}"]`); const u=inp&&inp.value.trim(); if(!u) return; addImgs(findC(id),[{url:u,source:u,caption:""}]); toast("Image added."); }
+      else if(a==="tagf"){ document.getElementById("search").value=t.dataset.t; renderStage(); }
+      else if(a==="lb") openLB(id,t.dataset.idx);
+      else if(a==="loadsample"){ const b=board(); const s=sampleBoard(); b.criteria=s.criteria; b.candidates=s.candidates; save(); render(); }
+      else if(a==="focusadd") document.getElementById("newName").focus();
+      else if(a==="tpick") tournamentPick(id);
+      else if(a==="tskip"){ pair=pickPair(); renderStage(); }
+    });
+    document.body.addEventListener("input",e=>{
+      const t=e.target.closest("[data-a]"); if(!t) return;
+      if(t.dataset.a==="score"){ const c=findC(t.dataset.id); if(c){ c.scores[t.dataset.cid]=Number(t.value); const s=t.parentElement.querySelector("strong"); if(s) s.textContent=f1(t.value); save(); schedule(); } }
+      else if(t.dataset.a==="crit-w"){ const c=board().criteria.find(x=>x.id===t.dataset.cid); if(c){ c.weight=Number(t.value); const s=t.parentElement.querySelector("strong"); if(s) s.textContent=t.value; save(); schedule(); } }
+      else if(t.dataset.a==="crit-name"){ const c=board().criteria.find(x=>x.id===t.dataset.cid); if(c){ c.label=t.value; save(); } }
+    });
+    document.body.addEventListener("change",e=>{
+      const t=e.target.closest("[data-a]"); if(!t) return;
+      if(t.dataset.a==="sel"){ if(t.checked) selected.add(t.dataset.id); else selected.delete(t.dataset.id); const row=t.closest(".row"); if(row) row.classList.toggle("selected",t.checked); renderCompareBtn(); }
+      else if(t.dataset.a==="upload") handleFiles(findC(t.dataset.id),t.files);
+      else if(t.dataset.a==="crit-name") renderSort();
+      else if(t.dataset.a==="tcrit"){ tCriterion=t.value; renderStage(); }
+      else if(t.dataset.a==="quadx"){ quad.x=t.value; renderStage(); }
+      else if(t.dataset.a==="quady"){ quad.y=t.value; renderStage(); }
+    });
+    let rt=null; function schedule(){ clearTimeout(rt); rt=setTimeout(()=>renderStage(),220); }
+
+    const stage=document.getElementById("stage");
+    // image drop (list) + tier drop share the drop event
+    stage.addEventListener("dragover",e=>{ const tier=e.target.closest("[data-tier]"); const row=e.target.closest("[data-drop]"); if(tier){ e.preventDefault(); tier.classList.add("over"); } else if(row && e.dataTransfer.types.includes("Files")){ e.preventDefault(); row.classList.add("drop"); } });
+    stage.addEventListener("dragleave",e=>{ const tier=e.target.closest("[data-tier]"); if(tier) tier.classList.remove("over"); const row=e.target.closest("[data-drop]"); if(row) row.classList.remove("drop"); });
+    stage.addEventListener("dragstart",e=>{ const card=e.target.closest("[data-tid]"); if(card) e.dataTransfer.setData("text/vr-tier",card.dataset.tid); });
+    stage.addEventListener("drop",e=>{
+      const tier=e.target.closest("[data-tier]");
+      const row=e.target.closest("[data-drop]");
+      if(e.dataTransfer.files && e.dataTransfer.files.length && row){ e.preventDefault(); row.classList.remove("drop"); const c=findC(row.dataset.drop); if(c) handleFiles(c,e.dataTransfer.files); return; }
+      const tid=e.dataTransfer.getData("text/vr-tier");
+      if(tier && tid){ e.preventDefault(); tier.classList.remove("over"); const c=findC(tid); if(c){ c.tier=tier.dataset.tier; save(); renderStage(); } }
+    });
+    // quadrant drag (pointer)
+    stage.addEventListener("pointerdown",e=>{ const tile=e.target.closest(".qtile"); if(!tile||mode!=="quadrant") return; const plot=document.getElementById("plot"); drag={ id:tile.dataset.qid, tile, rect:plot.getBoundingClientRect() }; tile.classList.add("drag"); tile.setPointerCapture&&tile.setPointerCapture(e.pointerId); e.preventDefault(); });
+    stage.addEventListener("pointermove",e=>{ if(!drag) return; const {rect,tile}=drag; let xv=(e.clientX-rect.left)/rect.width*10; let yv=(1-(e.clientY-rect.top)/rect.height)*10; xv=Math.max(0,Math.min(10,xv)); yv=Math.max(0,Math.min(10,yv)); const c=findC(drag.id); if(!c) return; c.scores[quad.x]=clampScore(xv); c.scores[quad.y]=clampScore(yv); tile.style.left=(xv*10)+"%"; tile.style.bottom=(yv*10)+"%"; });
+    stage.addEventListener("pointerup",()=>{ if(!drag) return; drag.tile.classList.remove("drag"); drag=null; save(); });
+
+    document.addEventListener("paste",e=>{ const files=[...(e.clipboardData?e.clipboardData.files:[])].filter(f=>f.type.startsWith("image/")); if(!files.length) return; if(selected.size!==1){ toast("In List mode, tick one item's compare box to paste an image into it."); return; } const c=findC([...selected][0]); if(c) handleFiles(c,files); });
+
+    document.getElementById("search").addEventListener("input",renderStage);
+    document.getElementById("statusFilter").addEventListener("change",renderStage);
+    document.getElementById("sort").addEventListener("change",renderStage);
+    document.getElementById("compareBtn").addEventListener("click",openCompare);
+    document.getElementById("photosBtn").addEventListener("click",fetchAllPhotos);
+
+    document.getElementById("addForm").addEventListener("submit",e=>{ e.preventDefault(); const name=document.getElementById("newName").value.trim(); if(!name) return; const tags=document.getElementById("newTags").value.split(",").map(s=>s.trim()).filter(Boolean); const b=board(); b.candidates.push(normCand({name,status:"review",tags,note:document.getElementById("newNote").value.trim()},b.criteria)); e.target.reset(); save(); render(); toast(`Added "${name}".`); });
+    document.getElementById("boardForm").addEventListener("submit",e=>{ e.preventDefault(); const name=document.getElementById("boardName").value.trim(); const tpl=document.getElementById("boardTemplate").value; let b; if(tpl==="current"){ const src=board(); b=JSON.parse(JSON.stringify(src)); b.id=uid("b"); b.name=name||(src.name+" copy"); b.candidates.forEach(c=>c.id=uid("i")); } else if(tpl==="sample") b=sampleBoard(name||"Sample: Destinations"); else b=blankBoard(name||"Untitled"); state.boards.push(b); state.activeId=b.id; selected.clear(); pair=[]; e.target.reset(); save(); render(); });
+    document.getElementById("clearBtn").addEventListener("click",()=>{ const b=board(); if(!confirm(`Remove all items from "${b.name}"?`)) return; b.candidates=[]; selected.clear(); pair=[]; save(); render(); });
+    document.getElementById("resetBtn").addEventListener("click",()=>{ const b=board(); if(!confirm(`Replace "${b.name}" with the sample set?`)) return; const s=sampleBoard(); b.criteria=s.criteria; b.candidates=s.candidates; selected.clear(); pair=[]; save(); render(); });
+    document.getElementById("exportBtn").addEventListener("click",()=>{ const card=document.getElementById("exportCard"); const show=card.style.display==="none"; card.style.display=show?"block":"none"; if(show) document.getElementById("exportText").value=JSON.stringify(state,null,2); });
+    document.getElementById("copyBtn").addEventListener("click",async()=>{ try{ await navigator.clipboard.writeText(document.getElementById("exportText").value); toast("Copied."); }catch(e){ toast("Copy failed."); } });
+    document.getElementById("importBtn").addEventListener("click",()=>{ try{ const p=JSON.parse(document.getElementById("exportText").value); if(!Array.isArray(p.boards)) throw 0; state={boards:p.boards.map(normBoard).filter(Boolean),activeId:p.activeId}; if(!state.boards.length) state.boards=[sampleBoard()]; if(!state.boards.some(b=>b.id===state.activeId)) state.activeId=state.boards[0].id; selected.clear(); pair=[]; save(); render(); toast("Imported."); }catch(e){ toast("That JSON didn't import cleanly."); } });
+
+    document.getElementById("lbClose").addEventListener("click",closeLB);
+    document.getElementById("lightbox").addEventListener("click",e=>{ if(e.target.id==="lightbox") closeLB(); });
+    document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{ if(e.target===o) o.classList.remove("open"); }));
+    document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeLB(); document.querySelectorAll(".overlay.open").forEach(o=>o.classList.remove("open")); } });
+
+    render();
+    autoPhotos();
+  </script>
+</body>
+</html>
