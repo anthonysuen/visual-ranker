@@ -26,6 +26,23 @@ Surface the reframe to the director BEFORE building, so it can be caught.
 - Taste does not average across models. Panels generate options; the
   director picks the sharp one. Lean on that, don't average to mush.
 
+## CONTRADICTIONS FIRST (the rule that outranks the others)
+When synthesizing a panel, the findings that ARGUE AGAINST the current
+direction go first, verbatim, and unsoftened — especially when they'd
+tell us to stop or undo what we're already building. Do NOT:
+  - bury the objection lower than the agreeable parts,
+  - pre-resolve it in the director's favor ("the panel says X, but you're
+    right"), which hides the choice instead of presenting it,
+  - paraphrase away its force, or omit it because we've already committed.
+The director decides — but only if they can SEE the disagreement. Steering
+by omission is worse than sycophancy: it makes the panel theater and takes
+the decision away without anyone noticing. A panel's entire value is the
+punch you don't want to hear; lead with it.
+(Failure that created this rule: a direction panel said 3 of the 4 view
+modes were "noise, don't build them." That recommendation was buried and
+pre-resolved in the director's favor; the director never saw it and we
+built the modes anyway. Never again.)
+
 ## Quality gates
 - score_version.py after each iteration (deterministic capability score).
 - Verify every change in the browser (single-file app: real load, real
