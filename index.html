@@ -84,6 +84,14 @@
     .qtile.has-spread::after{content:""; position:absolute; inset:-4px; border-radius:50%; border:2px solid transparent;}
     .qtile.has-spread.some::after{border-color:rgba(210,153,34,.7);}
     .qtile.has-spread.split::after{border-color:rgba(248,81,73,.85);}
+    .q-ellipse{position:absolute; transform:translate(-50%,50%); border-radius:50%; pointer-events:none; opacity:.28; z-index:0;}
+    .q-ellipse.tight{background:radial-gradient(rgba(63,185,80,.5),transparent 70%);}
+    .q-ellipse.some{background:radial-gradient(rgba(210,153,34,.5),transparent 70%);}
+    .q-ellipse.split{background:radial-gradient(rgba(248,81,73,.55),transparent 70%);}
+    .tier-dist{display:flex; height:5px; border-radius:3px; overflow:hidden; margin-top:4px; background:var(--panel);}
+    .td-seg{display:block; height:100%;} .td-S{background:#3fb950;} .td-A{background:#7ee787;} .td-B{background:#d29922;} .td-C{background:#db8b2a;} .td-D{background:#f85149;}
+    .dotplot{position:relative; height:14px; margin-top:6px; width:120px; background:linear-gradient(90deg,var(--panel),var(--panel)); border-radius:7px;}
+    .dotplot .dp-dot{position:absolute; top:50%; width:7px; height:7px; margin:-3.5px 0 0 -3.5px; border-radius:50%; background:var(--accent); opacity:.75; box-shadow:0 0 0 1px rgba(0,0,0,.3);}
     .mode-desc{color:var(--faint); font-size:12px;}
 
     .layout{display:grid; grid-template-columns:300px minmax(0,1fr); gap:22px; align-items:start;}
@@ -284,6 +292,7 @@
       </div>
       <span class="mode-desc" id="modeDesc"></span>
       <span class="lens-toggle" id="lensToggle" style="display:none"><button data-a="lens" data-lens="solo" class="on">Solo</button><button data-a="lens" data-lens="group">Group</button></span>
+      <span class="lens-toggle" id="spreadToggle" style="display:none"><button data-a="spread" data-sp="mean">Mean</button><button data-a="spread" data-sp="dist" class="on">Individual</button></span>
     </div>
 
     <div class="layout">
@@ -373,21 +382,6 @@
       { name:"Marrakesh", status:"review", tags:["africa","market"], note:"Sensory, vibrant, great value.", s:{scenery:7.4,value:8.4,food:8.0,ease:6.4} }
     ];
 
-    let state = loadState();
-    let mode = localStorage.getItem(MODE_KEY) || "list";
-    let selected = new Set();
-    let expanded = new Set();
-    let pair = [];               // tournament current pair
-    let tCriterion = "overall";  // tournament judging axis
-    let quad = { x:null, y:null };
-    let drag = null;             // quadrant drag state
-
-    function uid(p){ return p+"-"+Date.now().toString(36)+"-"+Math.floor(Math.random()*1e6).toString(36); }
-    function slug(v){ return String(v).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,""); }
-    function round1(v){ return Math.round(Number(v||0)*10)/10; }
-    function clampScore(v){ return Math.max(0,Math.min(10,Math.round(v*10)/10)); }
-    function f1(v){ return Number(v||0).toFixed(1); }
-
     const SAMPLE_PACKS = {
       "Destinations": { criteria: sampleCriteria(), items: sampleItems },
       "Laptops": { criteria:[{id:"perf",label:"Performance",weight:30},{id:"battery",label:"Battery",weight:25},{id:"value",label:"Value",weight:25},{id:"build",label:"Build",weight:20}], items:[
@@ -416,11 +410,33 @@
         {name:"Animated feature",status:"keep",tags:["animation"],note:"Beautiful, all ages.",s:{story:8.0,craft:9.0,rewatch:8.4,mood:8.6}}
       ]}
     };
+
+    let state = loadState();
+    let mode = localStorage.getItem(MODE_KEY) || "list";
+    let selected = new Set();
+    let expanded = new Set();
+    let pair = [];               // tournament current pair
+    let tCriterion = "overall";  // tournament judging axis
+    let quad = { x:null, y:null };
+    let drag = null;             // quadrant drag state
+
+    function uid(p){ return p+"-"+Date.now().toString(36)+"-"+Math.floor(Math.random()*1e6).toString(36); }
+    function slug(v){ return String(v).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,""); }
+    function round1(v){ return Math.round(Number(v||0)*10)/10; }
+    function clampScore(v){ return Math.max(0,Math.min(10,Math.round(v*10)/10)); }
+    function f1(v){ return Number(v||0).toFixed(1); }
+
     function sampleBoard(name="Destinations"){ const key=SAMPLE_PACKS[name]?name:"Destinations"; const p=SAMPLE_PACKS[key]; const criteria=(p.criteria||sampleCriteria()).map(c=>({...c})); return { id:uid("b"), name:"Sample: "+key, criteria, candidates:p.items.map(it=>normCand({name:it.name,status:it.status,tags:it.tags,note:it.note,scores:it.s},criteria)) }; }
     function blankBoard(name="Untitled"){ return { id:uid("b"), name, criteria:[{id:"rating",label:"Rating",weight:30}], candidates:[] }; }
     function normCand(c,criteria){ const scores={}; criteria.forEach(cr=>{const v=c.scores&&c.scores[cr.id]; scores[cr.id]=(v==null)?5:clampScore(Number(v));}); return { id:c.id||uid("i"), name:String(c.name||"Untitled"), status:["keep","maybe","pass","review"].includes(c.status)?c.status:"review", tags:Array.isArray(c.tags)?c.tags:[], note:c.note||"", images:Array.isArray(c.images)?c.images.map(normImg).filter(Boolean):[], scores, tier:c.tier||null, wikiTried:Boolean(c.wikiTried), compareCount:Number(c.compareCount||0) }; }
     function normImg(i){ if(!i) return null; if(typeof i==="string") return {url:i,source:i,caption:""}; if(!i.url) return null; return {url:i.url,source:i.source||i.url,caption:i.caption||""}; }
-    function normBoard(b){ if(!b) return null; const criteria=Array.isArray(b.criteria)&&b.criteria.length?b.criteria.map(c=>({id:c.id||slug(c.label)||uid("c"),label:c.label||"Criterion",weight:Number(c.weight||0)})):[{id:"rating",label:"Rating",weight:30}]; return { id:b.id||uid("b"), name:String(b.name||"Untitled").trim()||"Untitled", criteria, candidates:Array.isArray(b.candidates)?b.candidates.map(c=>normCand(c,criteria)):[] }; }
+    const SCHEMA_VERSION = 1;  // bump only on a breaking board-shape change
+    function normBoard(b){ if(!b) return null;
+      // Forward/backward compatible: unknown future fields are ignored,
+      // missing fields get safe defaults, so a board file exported by any
+      // version stays readable. The scores{} + criteria{} core never moves.
+      const criteria=Array.isArray(b.criteria)&&b.criteria.length?b.criteria.map(c=>({id:c.id||slug(c.label)||uid("c"),label:c.label||"Criterion",weight:Number(c.weight||0)})):[{id:"rating",label:"Rating",weight:30}];
+      return { v:SCHEMA_VERSION, id:b.id||uid("b"), name:String(b.name||"Untitled").trim()||"Untitled", criteria, candidates:Array.isArray(b.candidates)?b.candidates.map(c=>normCand(c,criteria)):[] }; }
     function loadState(){ const s=localStorage.getItem(STORAGE_KEY); if(s){ try{ const p=JSON.parse(s); if(Array.isArray(p.boards)&&p.boards.length){ const boards=p.boards.map(normBoard).filter(Boolean); const activeId=boards.some(b=>b.id===p.activeId)?p.activeId:boards[0].id; return {boards,activeId}; } }catch(e){} } const b=sampleBoard(); return {boards:[b],activeId:b.id}; }
     function board(){ let b=state.boards.find(x=>x.id===state.activeId); if(!b){b=state.boards[0]; state.activeId=b.id;} return b; }
     function save(){ try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }catch(e){ toast("Storage full — export or remove images."); } }
@@ -428,7 +444,7 @@
     function fit(c,b=board()){ const t=b.criteria.reduce((s,x)=>s+Number(x.weight||0),0)||1; const w=b.criteria.reduce((s,x)=>s+Number(c.scores[x.id]||0)*Number(x.weight||0),0); return round1(w/t); }
     /* group lens: when groupMode is on, the four views read aggregate
        scores across all contributors instead of your solo scores. */
-    let groupMode=false, _gi=null;
+    let groupMode=false, showSpread=true, _gi=null;
     function groupIndex(){
       const contribs=[{name:"You",board:board()},...aggBoards];
       const idx={};
@@ -443,6 +459,9 @@
     function dscore(c,critId){ if(!groupMode) return Number(c.scores[critId]||0); const g=gi()[normName(c.name)]; return (g&&g.critMean[critId]!=null)?g.critMean[critId]:Number(c.scores[critId]||0); }
     function dspread(c){ if(!groupMode) return 0; const g=gi()[normName(c.name)]; return g?g.spread:0; }
     function spreadBadge(c){ const s=dspread(c); if(!groupMode||s<=0) return ""; const cls=s<1?"tight":s<3?"some":"split"; return `<span class="spread-badge ${cls}" title="Contributors disagree by ±${f1(s/2)}">±${f1(s/2)}</span>`; }
+    function critSpread(name,critId){ const g=gi()[normName(name)]; if(!g||!g.crit[critId]||g.crit[critId].length<2) return 0; const a=g.crit[critId]; const m=a.reduce((s,v)=>s+v,0)/a.length; return Math.sqrt(a.reduce((s,v)=>s+(v-m)*(v-m),0)/a.length); }
+    function fitDist(name){ const g=gi()[normName(name)]; return g?g.fits:[]; }
+    function tierDist(name){ const g=gi()[normName(name)]; if(!g) return null; const cnt={S:0,A:0,B:0,C:0,D:0}; g.fits.forEach(v=>cnt[fitTier(v)]++); return cnt; }
     function sorted(opts={}){ const b=board(); const q=(document.getElementById("search").value||"").trim().toLowerCase(); const st=document.getElementById("statusFilter").value; const sb=document.getElementById("sort").value; let list=[...b.candidates]; if(q) list=list.filter(c=>[c.name,c.note,...(c.tags||[])].join(" ").toLowerCase().includes(q)); if(st!=="all") list=list.filter(c=>c.status===st); list.sort((x,y)=>{ if(sb==="name") return x.name.localeCompare(y.name); if(!sb||sb==="fit") return dfit(y,b)-dfit(x,b); return Number(y.scores[sb]||0)-Number(x.scores[sb]||0); }); if(opts.limit) list=list.slice(0,opts.limit); return list; }
 
     function hue(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))%360; return h; }
@@ -477,7 +496,9 @@
       const b=board(); const stage=document.getElementById("stage");
       refreshGI();
       const lt=document.getElementById("lensToggle");
-      if(lt){ const show=aggBoards.length>0 && mode!=="aggregate"; lt.style.display=show?"inline-flex":"none"; if(!show && mode==="aggregate") {} lt.querySelectorAll("button").forEach(x=>x.classList.toggle("on",(x.dataset.lens==="group")===groupMode)); }
+      if(lt){ const show=aggBoards.length>0 && mode!=="aggregate"; lt.style.display=show?"inline-flex":"none"; lt.querySelectorAll("button").forEach(x=>x.classList.toggle("on",(x.dataset.lens==="group")===groupMode)); }
+      const stog=document.getElementById("spreadToggle");
+      if(stog){ const show2=groupMode && mode!=="aggregate" && mode!=="list"===false || (groupMode && mode!=="aggregate"); stog.style.display=(groupMode&&mode!=="aggregate")?"inline-flex":"none"; stog.querySelectorAll("button").forEach(x=>x.classList.toggle("on",(x.dataset.sp==="dist")===showSpread)); }
       if(mode==="aggregate"){ stage.innerHTML=aggregateHTML(); return; }
       if(!b.candidates.length){ stage.innerHTML=emptyHTML(); return; }
       if(mode==="list") stage.innerHTML=podiumHTML()+listHTML();
@@ -494,7 +515,7 @@
         const bars=b.criteria.map(cr=>{const v=Number(c.scores[cr.id]||0); return `<div class="bar"><span>${esc(cr.label)}</span><div class="track"><div class="fill" style="width:${v*10}%"></div></div><strong>${f1(v)}</strong></div>`;}).join("");
         const sliders=b.criteria.map(cr=>`<label class="metric"><span>${esc(cr.label)}</span><input type="range" min="0" max="10" step="0.1" value="${c.scores[cr.id]}" data-a="score" data-id="${esc(c.id)}" data-cid="${esc(cr.id)}"><strong>${f1(c.scores[cr.id])}</strong></label>`).join("");
         const n=(c.images||[]).length;
-        return `<article class="row ${i<3?"top":""} ${selected.has(c.id)?"selected":""} ${open?"expanded":""}" data-drop="${esc(c.id)}"><div class="rank-badge">${i+1}</div><div class="thumb"><img src="${esc(img0(c))}" alt="${esc(c.name)}" referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0" ${imgErr(c)}>${n>1?`<span class="thumb-count">${n}</span>`:""}</div><div class="row-main"><div class="row-title"><h3>${esc(c.name)}</h3>${spreadBadge(c)}<span class="chip ${c.status}">${esc(c.status)}</span><label class="sel"><input type="checkbox" data-a="sel" data-id="${esc(c.id)}" ${selected.has(c.id)?"checked":""}>compare</label></div>${c.note?`<p class="row-note">${esc(c.note)}</p>`:""}${(c.tags||[]).length?`<div class="row-tags">${c.tags.map(t=>`<button class="tag" data-a="tagf" data-t="${esc(t)}">${esc(t)}</button>`).join("")}</div>`:""}</div><div class="row-metrics"><div class="fit"><span class="num">${f1(dfit(c,b))}</span><span class="lab">${groupMode?"group score":"weighted fit"}</span></div><div class="bars">${bars}</div></div><div class="row-tools"><div class="tools-grid"><div><div class="status-set"><button data-a="status" data-id="${esc(c.id)}" data-status="keep" class="${c.status==="keep"?"active":""}">Keep</button><button data-a="status" data-id="${esc(c.id)}" data-status="maybe" class="${c.status==="maybe"?"active":""}">Maybe</button><button data-a="status" data-id="${esc(c.id)}" data-status="pass" class="${c.status==="pass"?"active":""}">Pass</button></div>${sliders}</div><div><div class="img-tools"><input placeholder="Paste image URL" data-url="${esc(c.id)}"><button data-a="addurl" data-id="${esc(c.id)}">Add</button><label class="up">Upload<input type="file" accept="image/*" multiple style="display:none" data-a="upload" data-id="${esc(c.id)}"></label></div><p class="drop-note">Drag &amp; drop images onto this row.</p><div style="display:flex;gap:8px;margin-top:10px"><a href="https://www.google.com/search?tbm=isch&q=${encodeURIComponent(c.name)}" target="_blank" rel="noreferrer" style="flex:1"><button style="width:100%">Image search</button></a><button class="del-btn" data-a="del" data-id="${esc(c.id)}">Delete</button></div></div></div></div><div class="expand-toggle"><button data-a="expand" data-id="${esc(c.id)}">${open?"Hide editor ▲":"Edit scores, status &amp; images ▼"}</button></div></article>`;
+        return `<article class="row ${i<3?"top":""} ${selected.has(c.id)?"selected":""} ${open?"expanded":""}" data-drop="${esc(c.id)}"><div class="rank-badge">${i+1}</div><div class="thumb"><img src="${esc(img0(c))}" alt="${esc(c.name)}" referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0" ${imgErr(c)}>${n>1?`<span class="thumb-count">${n}</span>`:""}</div><div class="row-main"><div class="row-title"><h3>${esc(c.name)}</h3>${spreadBadge(c)}<span class="chip ${c.status}">${esc(c.status)}</span><label class="sel"><input type="checkbox" data-a="sel" data-id="${esc(c.id)}" ${selected.has(c.id)?"checked":""}>compare</label></div>${c.note?`<p class="row-note">${esc(c.note)}</p>`:""}${(c.tags||[]).length?`<div class="row-tags">${c.tags.map(t=>`<button class="tag" data-a="tagf" data-t="${esc(t)}">${esc(t)}</button>`).join("")}</div>`:""}</div><div class="row-metrics"><div class="fit"><span class="num">${f1(dfit(c,b))}</span><span class="lab">${groupMode?"group score":"weighted fit"}</span>${(function(){ if(!groupMode||!showSpread) return ""; const d=fitDist(c.name); if(d.length<2) return ""; const dots=d.map(v=>`<span class="dp-dot" style="left:${v*10}%" title="${f1(v)}"></span>`).join(""); return `<div class="dotplot" title="Each contributor\'s score">${dots}</div>`; })()}</div><div class="bars">${bars}</div></div><div class="row-tools"><div class="tools-grid"><div><div class="status-set"><button data-a="status" data-id="${esc(c.id)}" data-status="keep" class="${c.status==="keep"?"active":""}">Keep</button><button data-a="status" data-id="${esc(c.id)}" data-status="maybe" class="${c.status==="maybe"?"active":""}">Maybe</button><button data-a="status" data-id="${esc(c.id)}" data-status="pass" class="${c.status==="pass"?"active":""}">Pass</button></div>${sliders}</div><div><div class="img-tools"><input placeholder="Paste image URL" data-url="${esc(c.id)}"><button data-a="addurl" data-id="${esc(c.id)}">Add</button><label class="up">Upload<input type="file" accept="image/*" multiple style="display:none" data-a="upload" data-id="${esc(c.id)}"></label></div><p class="drop-note">Drag &amp; drop images onto this row.</p><div style="display:flex;gap:8px;margin-top:10px"><a href="https://www.google.com/search?tbm=isch&q=${encodeURIComponent(c.name)}" target="_blank" rel="noreferrer" style="flex:1"><button style="width:100%">Image search</button></a><button class="del-btn" data-a="del" data-id="${esc(c.id)}">Delete</button></div></div></div></div><div class="expand-toggle"><button data-a="expand" data-id="${esc(c.id)}">${open?"Hide editor ▲":"Edit scores, status &amp; images ▼"}</button></div></article>`;
       }).join("")+`</div>`;
     }
 
@@ -524,7 +545,10 @@
       const xL=(b.criteria.find(c=>c.id===quad.x)||{}).label, yL=(b.criteria.find(c=>c.id===quad.y)||{}).label;
       const items=b.candidates.filter(c=>c.status!=="pass");
       const gl=[2,4,6,8].map(n=>`<div class="grid-line gl-v" style="left:${n*10}%"></div><div class="grid-line gl-h" style="top:${n*10}%"></div>`).join("");
-      const tiles=items.map(c=>{ const xv=dscore(c,quad.x), yv=dscore(c,quad.y); const sp=dspread(c); const spc=(groupMode&&sp>0)?(sp<1?"tight":sp<3?"some":"split"):""; return `<div class="qtile ${spc?"has-spread "+spc:""}" data-qid="${esc(c.id)}" style="left:${xv*10}%; bottom:${yv*10}%"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><span>${esc(c.name)}</span></div>`; }).join("");
+      const tiles=items.map(c=>{ const xv=dscore(c,quad.x), yv=dscore(c,quad.y);
+        let ellipse="";
+        if(groupMode&&showSpread){ const sx=critSpread(c.name,quad.x), sy=critSpread(c.name,quad.y); const mag=Math.max(sx,sy); const cls=mag<0.5?"tight":mag<1.5?"some":"split"; if(mag>0.05){ ellipse=`<div class="q-ellipse ${cls}" style="width:${Math.min(60,sx*2*10)}%; height:${Math.min(60,sy*2*10)}%; left:${xv*10}%; bottom:${yv*10}%"></div>`; } }
+        return ellipse+`<div class="qtile" data-qid="${esc(c.id)}" style="left:${xv*10}%; bottom:${yv*10}%"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><span>${esc(c.name)}</span></div>`; }).join("");
       return `<div class="quad-controls"><label>X axis: <select data-a="quadx" style="min-height:34px">${opts(quad.x)}</select></label><label>Y axis: <select data-a="quady" style="min-height:34px">${opts(quad.y)}</select></label><span class="mode-desc">Drag a tile to re-score it on both axes.</span></div>
         <div class="quad-wrap"><div class="quad-ylab">${esc(yL)} →</div><div class="plot" id="plot">${gl}<span class="qlabel" style="left:6px;bottom:6px">0,0</span><span class="qlabel" style="right:6px;top:6px">10,10</span>${tiles}</div><div class="quad-xlab">${esc(xL)} →</div></div>`;
     }
@@ -537,7 +561,7 @@
       const b=board(); const items=b.candidates.filter(c=>c.status!=="pass");
       const byTier={}; TIERS.forEach(t=>byTier[t]=[]); items.forEach(c=>{ (byTier[tierOf(c)]||byTier.D).push(c); });
       TIERS.forEach(t=>byTier[t].sort((x,y)=>dfit(y,b)-dfit(x,b)));
-      return `<p class="tier-hint">Cards start where their weighted fit suggests. Drag any card to a new tier to override; it stays put after.</p><div class="tiers">`+TIERS.map(t=>`<div class="tier ${t}"><div class="tier-badge">${t}</div><div class="tier-drop" data-tier="${t}">${byTier[t].map(c=>`<div class="tcard" draggable="true" data-tid="${esc(c.id)}"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><div class="tn">${esc(c.name)} · ${f1(dfit(c,b))} ${spreadBadge(c)}</div></div>`).join("")}</div></div>`).join("")+`</div>`;
+      return `<p class="tier-hint">Cards start where their weighted fit suggests. Drag any card to a new tier to override; it stays put after.</p><div class="tiers">`+TIERS.map(t=>`<div class="tier ${t}"><div class="tier-badge">${t}</div><div class="tier-drop" data-tier="${t}">${byTier[t].map(c=>`<div class="tcard" draggable="true" data-tid="${esc(c.id)}"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><div class="tn">${esc(c.name)} · ${f1(dfit(c,b))}</div>${(function(){ if(!groupMode||!showSpread) return ""; const d=tierDist(c.name); if(!d) return ""; const tot=Object.values(d).reduce((s,v)=>s+v,0)||1; const seg=["S","A","B","C","D"].map(t=>d[t]?`<span class="td-seg td-${t}" style="width:${d[t]/tot*100}%" title="${d[t]} in ${t}"></span>`:"").join(""); return `<div class="tier-dist" title="Where contributors placed this">${seg}</div>`; })()}</div>`).join("")}</div></div>`).join("")+`</div>`;
     }
 
     function emptyHTML(){ return `<div class="empty"><h3>This board is empty</h3><p>Add options against a rubric you control, then try each mode.</p><ol><li>Add items on the left.</li><li>Tune the rubric weights.</li><li>Rank with List, Tournament, Quadrant or Tiers.</li></ol><div class="acts"><button class="primary" data-a="loadsample">Load sample set</button><button data-a="focusadd">Add first item</button></div></div>`; }
@@ -591,6 +615,7 @@
       if(x==="cmp") document.getElementById("cmpOverlay").classList.remove("open");
       else if(a==="mode") setMode(t.dataset.mode);
       else if(a==="lens"){ groupMode=(t.dataset.lens==="group"); refreshGI(); renderStage(); }
+      else if(a==="spread"){ showSpread=(t.dataset.sp==="dist"); renderStage(); }
       else if(a==="board"){ state.activeId=id; selected.clear(); expanded.clear(); pair=[]; save(); render(); }
       else if(a==="board-del"){ e.stopPropagation(); const b=state.boards.find(x=>x.id===id); if(!b||state.boards.length<=1) return; if(!confirm(`Delete board "${b.name}"?`)) return; state.boards=state.boards.filter(x=>x.id!==id); if(state.activeId===id) state.activeId=state.boards[0].id; selected.clear(); save(); render(); }
       else if(a==="crit-del"){ const b=board(); if(b.criteria.length<=1) return; const cn=(b.criteria.find(c=>c.id===t.dataset.cid)||{}).label||"this criterion"; if(!confirm("Delete \""+cn+"\" and its scores on every item?")) return; b.criteria=b.criteria.filter(c=>c.id!==t.dataset.cid); b.candidates.forEach(c=>delete c.scores[t.dataset.cid]); save(); render(); }
