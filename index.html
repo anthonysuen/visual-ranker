@@ -52,6 +52,28 @@
     .modeseg button{border:0; background:transparent; color:var(--muted); border-radius:9px; min-height:36px; padding:6px 16px; font-weight:650; display:inline-flex; align-items:center; gap:7px;}
     .modeseg button .ic{font-size:15px;}
     .modeseg button.on{background:var(--raise); color:var(--ink); box-shadow:0 1px 0 rgba(255,255,255,.05) inset;}
+    /* aggregate view */
+    .agg-wrap{display:grid; gap:14px;}
+    .agg-drop{border:1.5px dashed var(--line); border-radius:14px; padding:22px; text-align:center; background:var(--panel); transition:border-color .15s, background .15s;}
+    .agg-drop.over{border-color:var(--accent); background:var(--raise);}
+    .agg-drop strong{display:block; font-size:15px; margin-bottom:4px;}
+    .agg-contribs{display:flex; gap:8px; flex-wrap:wrap;}
+    .agg-chip{background:var(--raise); border:1px solid var(--line); border-radius:20px; padding:4px 12px; font-size:13px; font-weight:600;}
+    .agg-chip button{background:none; border:0; color:var(--muted); cursor:pointer; font-size:14px; padding:0 2px;}
+    .agg-legend{display:flex; gap:16px; font-size:12px; color:var(--muted);}
+    .agg-legend i{display:inline-block; width:22px; height:8px; border-radius:4px; margin-right:5px; vertical-align:middle;}
+    .agg-legend i.tight{background:#3fb950;} .agg-legend i.some{background:#d29922;} .agg-legend i.split{background:#f85149;}
+    .agg-table{width:100%; border-collapse:collapse; font-size:14px;}
+    .agg-table th{text-align:left; color:var(--muted); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line); font-size:12px; text-transform:uppercase; letter-spacing:.03em;}
+    .agg-table td{padding:10px; border-bottom:1px solid var(--line); vertical-align:middle;}
+    .agg-col{text-align:center; color:var(--muted);}
+    .agg-rank{color:var(--muted); width:32px;}
+    .agg-name{font-weight:650;}
+    .agg-mean strong{font-size:18px;}
+    .agg-bar{display:inline-block; width:90px; height:8px; border-radius:4px; background:var(--raise); overflow:hidden; vertical-align:middle; margin-right:8px;}
+    .agg-bar span{display:block; height:100%;}
+    .agg-bar.tight span{background:#3fb950;} .agg-bar.some span{background:#d29922;} .agg-bar.split span{background:#f85149;}
+    .agg-lab{font-size:12px; color:var(--muted);}
     .mode-desc{color:var(--faint); font-size:12px;}
 
     .layout{display:grid; grid-template-columns:300px minmax(0,1fr); gap:22px; align-items:start;}
@@ -232,6 +254,8 @@
       </div>
       <div class="top-actions">
         <button id="photosBtn" class="primary" title="Fetch a photo by name from Wikipedia for items without one">Get photos</button>
+        <button id="saveFileBtn" title="Download this board as a .json file to share">Save file</button>
+        <button id="shareLinkBtn" title="Copy a link that loads this board (no images)">Share link</button>
         <button id="exportBtn">Export</button>
         <button id="resetBtn" class="ghost" title="Load the sample set">Sample</button>
         <button id="clearBtn" class="ghost" title="Remove all items">Clear</button>
@@ -246,6 +270,7 @@
         <button data-a="mode" data-mode="tournament"><span class="ic">⚔</span>Tournament</button>
         <button data-a="mode" data-mode="quadrant"><span class="ic">⊹</span>Quadrant</button>
         <button data-a="mode" data-mode="tiers"><span class="ic">▤</span>Tiers</button>
+        <button data-a="mode" data-mode="aggregate"><span class="ic">◎</span>Aggregate</button>
       </div>
       <span class="mode-desc" id="modeDesc"></span>
     </div>
@@ -352,7 +377,35 @@
     function clampScore(v){ return Math.max(0,Math.min(10,Math.round(v*10)/10)); }
     function f1(v){ return Number(v||0).toFixed(1); }
 
-    function sampleBoard(name="Sample: Destinations"){ const criteria=sampleCriteria(); return { id:uid("b"), name, criteria, candidates:sampleItems.map(it=>normCand({name:it.name,status:it.status,tags:it.tags,note:it.note,scores:it.s},criteria)) }; }
+    const SAMPLE_PACKS = {
+      "Destinations": { criteria: sampleCriteria(), items: sampleItems },
+      "Laptops": { criteria:[{id:"perf",label:"Performance",weight:30},{id:"battery",label:"Battery",weight:25},{id:"value",label:"Value",weight:25},{id:"build",label:"Build",weight:20}], items:[
+        {name:"MacBook Air M4",status:"keep",tags:["mac","light"],note:"Fanless, all-day battery.",s:{perf:8.2,battery:9.4,value:7.8,build:9.2}},
+        {name:"Framework 13",status:"maybe",tags:["repairable"],note:"Upgradeable, right-to-repair.",s:{perf:7.6,battery:6.8,value:7.2,build:7.4}},
+        {name:"ThinkPad X1 Carbon",status:"keep",tags:["business"],note:"Best keyboard, matte screen.",s:{perf:7.8,battery:7.6,value:6.4,build:8.6}},
+        {name:"Dell XPS 13",status:"review",tags:["windows"],note:"Gorgeous, runs warm.",s:{perf:8.0,battery:7.0,value:6.6,build:8.4}},
+        {name:"Asus Zenbook 14",status:"maybe",tags:["oled"],note:"OLED, great value.",s:{perf:7.4,battery:7.2,value:8.6,build:7.2}}
+      ]},
+      "Job offers": { criteria:[{id:"comp",label:"Compensation",weight:30},{id:"growth",label:"Growth",weight:25},{id:"team",label:"Team",weight:25},{id:"balance",label:"Life balance",weight:20}], items:[
+        {name:"Startup — Series B",status:"maybe",tags:["equity"],note:"High equity, high risk.",s:{comp:6.5,growth:9.2,team:7.8,balance:5.4}},
+        {name:"Big Tech — L5",status:"keep",tags:["stable"],note:"Great comp, slower pace.",s:{comp:9.4,growth:6.8,team:7.0,balance:7.6}},
+        {name:"Remote scale-up",status:"keep",tags:["remote"],note:"Flexible, solid team.",s:{comp:7.8,growth:8.0,team:8.6,balance:8.8}},
+        {name:"Agency",status:"pass",tags:["clients"],note:"Varied work, long hours.",s:{comp:6.8,growth:6.0,team:6.4,balance:4.2}}
+      ]},
+      "Restaurants": { criteria:[{id:"food",label:"Food",weight:40},{id:"vibe",label:"Vibe",weight:20},{id:"value",label:"Value",weight:20},{id:"service",label:"Service",weight:20}], items:[
+        {name:"The corner trattoria",status:"keep",tags:["italian"],note:"Handmade pasta, tiny room.",s:{food:9.2,vibe:8.0,value:7.6,service:8.4}},
+        {name:"Sushi counter",status:"maybe",tags:["omakase"],note:"Pricey but pristine.",s:{food:9.6,vibe:7.4,value:5.2,service:9.0}},
+        {name:"Taco truck",status:"keep",tags:["cheap"],note:"Unbeatable value.",s:{food:8.4,vibe:6.0,value:9.8,service:6.8}},
+        {name:"Farm-to-table",status:"review",tags:["seasonal"],note:"Lovely, inconsistent.",s:{food:8.0,vibe:8.8,value:6.4,service:7.6}}
+      ]},
+      "Movies to watch": { criteria:[{id:"story",label:"Story",weight:35},{id:"craft",label:"Craft",weight:25},{id:"rewatch",label:"Rewatch",weight:20},{id:"mood",label:"Mood fit",weight:20}], items:[
+        {name:"Sci-fi epic",status:"keep",tags:["scifi"],note:"Big ideas, long runtime.",s:{story:8.6,craft:9.2,rewatch:7.0,mood:7.4}},
+        {name:"Cozy comedy",status:"maybe",tags:["comfort"],note:"Easy Friday pick.",s:{story:7.0,craft:6.6,rewatch:8.8,mood:9.0}},
+        {name:"Tense thriller",status:"review",tags:["thriller"],note:"Gripping, once is enough.",s:{story:8.2,craft:8.0,rewatch:4.6,mood:6.2}},
+        {name:"Animated feature",status:"keep",tags:["animation"],note:"Beautiful, all ages.",s:{story:8.0,craft:9.0,rewatch:8.4,mood:8.6}}
+      ]}
+    };
+    function sampleBoard(name="Destinations"){ const key=SAMPLE_PACKS[name]?name:"Destinations"; const p=SAMPLE_PACKS[key]; const criteria=(p.criteria||sampleCriteria()).map(c=>({...c})); return { id:uid("b"), name:"Sample: "+key, criteria, candidates:p.items.map(it=>normCand({name:it.name,status:it.status,tags:it.tags,note:it.note,scores:it.s},criteria)) }; }
     function blankBoard(name="Untitled"){ return { id:uid("b"), name, criteria:[{id:"rating",label:"Rating",weight:30}], candidates:[] }; }
     function normCand(c,criteria){ const scores={}; criteria.forEach(cr=>{const v=c.scores&&c.scores[cr.id]; scores[cr.id]=(v==null)?5:clampScore(Number(v));}); return { id:c.id||uid("i"), name:String(c.name||"Untitled"), status:["keep","maybe","pass","review"].includes(c.status)?c.status:"review", tags:Array.isArray(c.tags)?c.tags:[], note:c.note||"", images:Array.isArray(c.images)?c.images.map(normImg).filter(Boolean):[], scores, tier:c.tier||null, wikiTried:Boolean(c.wikiTried), compareCount:Number(c.compareCount||0) }; }
     function normImg(i){ if(!i) return null; if(typeof i==="string") return {url:i,source:i,caption:""}; if(!i.url) return null; return {url:i.url,source:i.source||i.url,caption:i.caption||""}; }
@@ -372,6 +425,7 @@
 
     /* ---------- render ---------- */
     const MODE_DESC = {
+      aggregate:"Drop everyone\'s board files here — see the group score and where people disagree.",
       list:"Ranked leaderboard by weighted fit. Edit scores, statuses and images.",
       tournament:"Pick a winner in each matchup — scores adjust Elo-style. No sliders needed.",
       quadrant:"Plot items on two criteria. Drag a tile to re-score it on both axes.",
@@ -393,6 +447,7 @@
 
     function renderStage(){
       const b=board(); const stage=document.getElementById("stage");
+      if(mode==="aggregate"){ stage.innerHTML=aggregateHTML(); return; }
       if(!b.candidates.length){ stage.innerHTML=emptyHTML(); return; }
       if(mode==="list") stage.innerHTML=podiumHTML()+listHTML();
       else if(mode==="tournament") stage.innerHTML=tournamentHTML();
@@ -511,6 +566,7 @@
       else if(a==="expand"){ if(expanded.has(id)) expanded.delete(id); else expanded.add(id); renderStage(); }
       else if(a==="del"){ const c=findC(id); if(!c||!confirm(`Delete "${c.name}"?`)) return; const b=board(); b.candidates=b.candidates.filter(y=>y.id!==id); selected.delete(id); expanded.delete(id); save(); render(); }
       else if(a==="addurl"){ const inp=document.querySelector(`[data-url="${CSS.escape(id)}"]`); const u=inp&&inp.value.trim(); if(!u) return; addImgs(findC(id),[{url:u,source:u,caption:""}]); toast("Image added."); }
+      else if(a==="agg-rm"){ aggBoards.splice(Number(t.dataset.idx),1); renderStage(); }
       else if(a==="tagf"){ document.getElementById("search").value=t.dataset.t; renderStage(); }
       else if(a==="lb") openLB(id,t.dataset.idx);
       else if(a==="loadsample"){ const b=board(); const s=sampleBoard(); b.criteria=s.criteria; b.candidates=s.candidates; save(); render(); }
@@ -544,6 +600,7 @@
     stage.addEventListener("drop",e=>{
       const tier=e.target.closest("[data-tier]");
       const row=e.target.closest("[data-drop]");
+      if(mode==="aggregate" && e.dataTransfer.files && e.dataTransfer.files.length){ e.preventDefault(); const dz=document.getElementById("aggDrop"); if(dz) dz.classList.remove("over"); addAggFiles(e.dataTransfer.files); return; }
       if(e.dataTransfer.files && e.dataTransfer.files.length && row){ e.preventDefault(); row.classList.remove("drop"); const c=findC(row.dataset.drop); if(c) handleFiles(c,e.dataTransfer.files); return; }
       const tid=e.dataTransfer.getData("text/vr-tier");
       if(tier && tid){ e.preventDefault(); tier.classList.remove("over"); const c=findC(tid); if(c){ c.tier=tier.dataset.tier; save(); renderStage(); } }
@@ -565,6 +622,42 @@
     document.getElementById("boardForm").addEventListener("submit",e=>{ e.preventDefault(); const name=document.getElementById("boardName").value.trim(); const tpl=document.getElementById("boardTemplate").value; let b; if(tpl==="current"){ const src=board(); b=JSON.parse(JSON.stringify(src)); b.id=uid("b"); b.name=name||(src.name+" copy"); b.candidates.forEach(c=>c.id=uid("i")); } else if(tpl==="sample") b=sampleBoard(name||"Sample: Destinations"); else b=blankBoard(name||"Untitled"); state.boards.push(b); state.activeId=b.id; selected.clear(); pair=[]; e.target.reset(); save(); render(); });
     document.getElementById("clearBtn").addEventListener("click",()=>{ const b=board(); if(!confirm(`Remove all items from "${b.name}"?`)) return; b.candidates=[]; selected.clear(); pair=[]; save(); render(); });
     document.getElementById("resetBtn").addEventListener("click",()=>{ const b=board(); if(!confirm(`Replace "${b.name}" with the sample set?`)) return; const s=sampleBoard(); b.criteria=s.criteria; b.candidates=s.candidates; selected.clear(); pair=[]; save(); render(); });
+    /* ---------- portability: file save / share link / import ---------- */
+    function boardBlob(b){ // strip base64 images so files & links stay small
+      const lite=JSON.parse(JSON.stringify(b));
+      lite.candidates.forEach(c=>{ if(Array.isArray(c.images)) c.images=c.images.filter(im=>im.url&&!im.url.startsWith("data:")); });
+      return lite;
+    }
+    function downloadBoard(){ const b=boardBlob(board()); const blob=new Blob([JSON.stringify(b,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=(b.name||"board").replace(/[^\w-]+/g,"_")+".json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); toast("Saved board file."); }
+    function shareLink(){ try{ const data=btoa(unescape(encodeURIComponent(JSON.stringify(boardBlob(board()))))); const url=location.origin+location.pathname+"#board="+data; navigator.clipboard.writeText(url); toast("Share link copied (no images)."); }catch(e){ toast("Board too large for a link — use Save file."); } }
+    function loadHashBoard(){ const m=location.hash.match(/#board=(.+)$/); if(!m) return false; try{ const b=normBoard(JSON.parse(decodeURIComponent(escape(atob(m[1]))))); if(b){ if(!state.boards.some(x=>x.name===b.name)){ state.boards.push(b); state.activeId=b.id; save(); } history.replaceState(null,"",location.pathname); return true; } }catch(e){} return false; }
+
+    /* ---------- aggregation: combine boards, surface disagreement ---------- */
+    let aggBoards=[];  // {name, board} contributions, starting with your own
+    function fitFor(cand,b){ const t=b.criteria.reduce((s,x)=>s+Number(x.weight||0),0)||1; const w=b.criteria.reduce((s,x)=>{ const v=cand.scores?cand.scores[x.id]:null; return s+(v==null?0:Number(v))*Number(x.weight||0); },0); return w/t; }
+    function normName(n){ return String(n||"").trim().toLowerCase(); }
+    function aggregateData(){
+      const contribs=[{name:"You",board:board()},...aggBoards];
+      const byItem={};
+      contribs.forEach((c,ci)=>{ c.board.candidates.forEach(cand=>{ const k=normName(cand.name); if(!byItem[k]) byItem[k]={name:cand.name,scores:[]}; byItem[k].scores[ci]=round1(fitFor(cand,c.board)); }); });
+      const rows=Object.values(byItem).map(it=>{ const vals=it.scores.filter(v=>v!=null); const mean=vals.reduce((a,b)=>a+b,0)/(vals.length||1); const spread=vals.length>1?Math.max(...vals)-Math.min(...vals):0; return {name:it.name,mean:round1(mean),spread:round1(spread),n:vals.length,scores:it.scores}; }).sort((a,b)=>b.mean-a.mean);
+      return {contribs,rows};
+    }
+    function aggregateHTML(){
+      const {contribs,rows}=aggregateData();
+      const chips=contribs.map((c,i)=>`<span class="agg-chip">${esc(c.name)}${i>0?` <button data-a="agg-rm" data-idx="${i-1}">×</button>`:""}</span>`).join("");
+      const drop=`<div id="aggDrop" class="agg-drop"><strong>Drop board files here</strong><div class="muted">Each person exports a board (Save file) and drops it in. Or <label class="up" style="text-decoration:underline;cursor:pointer">browse<input type="file" accept=".json,application/json" multiple style="display:none" id="aggFile"></label>. Nothing leaves your machine.</div></div>`;
+      if(rows.length<=0) return `<div class="agg-wrap">${drop}<div class="agg-contribs">${chips}</div></div>`;
+      const head=`<tr><th>#</th><th>Item</th><th>Group score</th><th>Agreement</th>${contribs.map(c=>`<th class="agg-col">${esc(c.name)}</th>`).join("")}</tr>`;
+      const body=rows.map((r,i)=>{ const disPct=Math.min(100,Math.round(r.spread/5*100)); const agree=r.spread<1?"tight":r.spread<3?"some":"split"; const cells=contribs.map((c,ci)=>{ const v=r.scores[ci]; return `<td class="agg-col">${v==null?'<span class="muted">—</span>':f1(v)}</td>`; }).join(""); return `<tr><td class="agg-rank">${i+1}</td><td class="agg-name">${esc(r.name)}${r.n<contribs.length?`<span class="muted"> (${r.n}/${contribs.length})</span>`:""}</td><td class="agg-mean"><strong>${f1(r.mean)}</strong></td><td class="agg-agree"><div class="agg-bar ${agree}"><span style="width:${disPct}%"></span></div><span class="agg-lab">${r.spread===0?"—":"±"+f1(r.spread/2)}</span></td>${cells}</tr>`; }).join("");
+      return `<div class="agg-wrap">${drop}<div class="agg-contribs">${chips}</div><div class="agg-legend"><span><i class="tight"></i>agree</span><span><i class="some"></i>some spread</span><span><i class="split"></i>they disagree</span></div><table class="agg-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+    }
+    function addAggFiles(files){ let n=0; const done=()=>{ if(n) toast(`Added ${n} board${n>1?"s":""}.`); renderStage(); }; let pending=files.length; if(!pending) return; [...files].forEach(f=>{ const r=new FileReader(); r.onload=()=>{ try{ const b=normBoard(JSON.parse(r.result)); if(b){ aggBoards.push({name:b.name.replace(/^Sample:\s*/,""),board:b}); n++; } }catch(e){} pending--; if(!pending) done(); }; r.onerror=()=>{ pending--; if(!pending) done(); }; r.readAsText(f); }); }
+
+    document.body.addEventListener("change",e=>{ if(e.target.id==="aggFile") addAggFiles(e.target.files); });
+    document.getElementById("stage").addEventListener("dragover",e=>{ if(mode==="aggregate"){ e.preventDefault(); const dz=document.getElementById("aggDrop"); if(dz) dz.classList.add("over"); } });
+    document.getElementById("saveFileBtn").addEventListener("click",downloadBoard);
+    document.getElementById("shareLinkBtn").addEventListener("click",shareLink);
     document.getElementById("exportBtn").addEventListener("click",()=>{ const card=document.getElementById("exportCard"); const show=card.style.display==="none"; card.style.display=show?"block":"none"; if(show) document.getElementById("exportText").value=JSON.stringify(state,null,2); });
     document.getElementById("copyBtn").addEventListener("click",async()=>{ try{ await navigator.clipboard.writeText(document.getElementById("exportText").value); toast("Copied."); }catch(e){ toast("Copy failed."); } });
     document.getElementById("importBtn").addEventListener("click",()=>{ if(!confirm("Import replaces ALL current boards. Continue?")) return; try{ const p=JSON.parse(document.getElementById("exportText").value); if(!Array.isArray(p.boards)) throw 0; state={boards:p.boards.map(normBoard).filter(Boolean),activeId:p.activeId}; if(!state.boards.length) state.boards=[sampleBoard()]; if(!state.boards.some(b=>b.id===state.activeId)) state.activeId=state.boards[0].id; selected.clear(); pair=[]; save(); render(); toast("Imported."); }catch(e){ toast("That JSON didn't import cleanly."); } });
@@ -574,6 +667,7 @@
     document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{ if(e.target===o) o.classList.remove("open"); }));
     document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeLB(); document.querySelectorAll(".overlay.open").forEach(o=>o.classList.remove("open")); } });
 
+    loadHashBoard();
     render();
     // auto-fetch on load removed: photos now fetch per item on add,
     // and the "Get photos" button backfills. Honest network use.
