@@ -74,6 +74,16 @@
     .agg-bar span{display:block; height:100%;}
     .agg-bar.tight span{background:#3fb950;} .agg-bar.some span{background:#d29922;} .agg-bar.split span{background:#f85149;}
     .agg-lab{font-size:12px; color:var(--muted);}
+    .lens-toggle{display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:3px; gap:2px; margin-left:6px;}
+    .lens-toggle button{border:0; background:transparent; color:var(--muted); border-radius:7px; padding:4px 12px; font-weight:650; font-size:13px; cursor:pointer;}
+    .lens-toggle button.on{background:var(--accent); color:#1a1206;}
+    .spread-badge{display:inline-block; font-size:11px; font-weight:700; padding:1px 7px; border-radius:20px; margin:0 4px; vertical-align:middle;}
+    .spread-badge.tight{background:rgba(63,185,80,.16); color:#4ac26b;}
+    .spread-badge.some{background:rgba(210,153,34,.16); color:#e0a92e;}
+    .spread-badge.split{background:rgba(248,81,73,.18); color:#ff6b62;}
+    .qtile.has-spread::after{content:""; position:absolute; inset:-4px; border-radius:50%; border:2px solid transparent;}
+    .qtile.has-spread.some::after{border-color:rgba(210,153,34,.7);}
+    .qtile.has-spread.split::after{border-color:rgba(248,81,73,.85);}
     .mode-desc{color:var(--faint); font-size:12px;}
 
     .layout{display:grid; grid-template-columns:300px minmax(0,1fr); gap:22px; align-items:start;}
@@ -273,6 +283,7 @@
         <button data-a="mode" data-mode="aggregate"><span class="ic">◎</span>Aggregate</button>
       </div>
       <span class="mode-desc" id="modeDesc"></span>
+      <span class="lens-toggle" id="lensToggle" style="display:none"><button data-a="lens" data-lens="solo" class="on">Solo</button><button data-a="lens" data-lens="group">Group</button></span>
     </div>
 
     <div class="layout">
@@ -415,7 +426,24 @@
     function save(){ try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }catch(e){ toast("Storage full — export or remove images."); } }
 
     function fit(c,b=board()){ const t=b.criteria.reduce((s,x)=>s+Number(x.weight||0),0)||1; const w=b.criteria.reduce((s,x)=>s+Number(c.scores[x.id]||0)*Number(x.weight||0),0); return round1(w/t); }
-    function sorted(opts={}){ const b=board(); const q=(document.getElementById("search").value||"").trim().toLowerCase(); const st=document.getElementById("statusFilter").value; const sb=document.getElementById("sort").value; let list=[...b.candidates]; if(q) list=list.filter(c=>[c.name,c.note,...(c.tags||[])].join(" ").toLowerCase().includes(q)); if(st!=="all") list=list.filter(c=>c.status===st); list.sort((x,y)=>{ if(sb==="name") return x.name.localeCompare(y.name); if(!sb||sb==="fit") return fit(y,b)-fit(x,b); return Number(y.scores[sb]||0)-Number(x.scores[sb]||0); }); if(opts.limit) list=list.slice(0,opts.limit); return list; }
+    /* group lens: when groupMode is on, the four views read aggregate
+       scores across all contributors instead of your solo scores. */
+    let groupMode=false, _gi=null;
+    function groupIndex(){
+      const contribs=[{name:"You",board:board()},...aggBoards];
+      const idx={};
+      contribs.forEach(ct=>{ ct.board.candidates.forEach(cand=>{ const k=normName(cand.name); if(!idx[k]) idx[k]={fits:[],crit:{}}; idx[k].fits.push(fitFor(cand,ct.board)); ct.board.criteria.forEach(cr=>{ const v=cand.scores?cand.scores[cr.id]:null; if(v!=null){ (idx[k].crit[cr.id]=idx[k].crit[cr.id]||[]).push(Number(v)); } }); }); });
+      const mean=a=>a.reduce((s,v)=>s+v,0)/(a.length||1);
+      Object.values(idx).forEach(o=>{ o.fit=round1(mean(o.fits)); o.spread=o.fits.length>1?round1(Math.max(...o.fits)-Math.min(...o.fits)):0; o.n=o.fits.length; o.critMean={}; for(const id in o.crit) o.critMean[id]=round1(mean(o.crit[id])); });
+      return idx;
+    }
+    function gi(){ return _gi||(_gi=groupIndex()); }
+    function refreshGI(){ _gi=null; }
+    function dfit(c,b=board()){ if(!groupMode) return fit(c,b); const g=gi()[normName(c.name)]; return g?g.fit:fit(c,b); }
+    function dscore(c,critId){ if(!groupMode) return Number(c.scores[critId]||0); const g=gi()[normName(c.name)]; return (g&&g.critMean[critId]!=null)?g.critMean[critId]:Number(c.scores[critId]||0); }
+    function dspread(c){ if(!groupMode) return 0; const g=gi()[normName(c.name)]; return g?g.spread:0; }
+    function spreadBadge(c){ const s=dspread(c); if(!groupMode||s<=0) return ""; const cls=s<1?"tight":s<3?"some":"split"; return `<span class="spread-badge ${cls}" title="Contributors disagree by ±${f1(s/2)}">±${f1(s/2)}</span>`; }
+    function sorted(opts={}){ const b=board(); const q=(document.getElementById("search").value||"").trim().toLowerCase(); const st=document.getElementById("statusFilter").value; const sb=document.getElementById("sort").value; let list=[...b.candidates]; if(q) list=list.filter(c=>[c.name,c.note,...(c.tags||[])].join(" ").toLowerCase().includes(q)); if(st!=="all") list=list.filter(c=>c.status===st); list.sort((x,y)=>{ if(sb==="name") return x.name.localeCompare(y.name); if(!sb||sb==="fit") return dfit(y,b)-dfit(x,b); return Number(y.scores[sb]||0)-Number(x.scores[sb]||0); }); if(opts.limit) list=list.slice(0,opts.limit); return list; }
 
     function hue(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))%360; return h; }
     function placeholder(name){ const ini=String(name).trim().split(/\s+/).slice(0,2).map(w=>[...w][0]||"").join("").toUpperCase()||"?"; const h=hue(name||"x"); const svg=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='hsl(${h},32%,30%)'/><stop offset='1' stop-color='hsl(${(h+45)%360},38%,16%)'/></linearGradient></defs><rect width='300' height='400' fill='url(#g)'/><text x='150' y='222' font-family='Inter,sans-serif' font-size='120' font-weight='800' fill='rgba(255,255,255,.82)' text-anchor='middle'>${ini}</text></svg>`; return "data:image/svg+xml;utf8,"+encodeURIComponent(svg); }
@@ -447,6 +475,9 @@
 
     function renderStage(){
       const b=board(); const stage=document.getElementById("stage");
+      refreshGI();
+      const lt=document.getElementById("lensToggle");
+      if(lt){ const show=aggBoards.length>0 && mode!=="aggregate"; lt.style.display=show?"inline-flex":"none"; if(!show && mode==="aggregate") {} lt.querySelectorAll("button").forEach(x=>x.classList.toggle("on",(x.dataset.lens==="group")===groupMode)); }
       if(mode==="aggregate"){ stage.innerHTML=aggregateHTML(); return; }
       if(!b.candidates.length){ stage.innerHTML=emptyHTML(); return; }
       if(mode==="list") stage.innerHTML=podiumHTML()+listHTML();
@@ -456,14 +487,14 @@
     }
 
     /* ----- list ----- */
-    function podiumHTML(){ const b=board(); const top=sorted().filter(c=>c.status!=="pass").slice(0,3); if(!top.length) return ""; return `<div class="podium">`+top.map((c,i)=>`<article class="pod p${i}"><div class="pod-img"><img src="${esc(img0(c))}" alt="${esc(c.name)}" referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0" ${imgErr(c)}><span class="medal">${i+1}</span><span class="pod-score">${f1(fit(c,b))}</span></div><div class="pod-body"><h3>${esc(c.name)}</h3><p>${esc(c.note||("Top "+(i+1)))}</p></div></article>`).join("")+`</div>`; }
+    function podiumHTML(){ const b=board(); const top=sorted().filter(c=>c.status!=="pass").slice(0,3); if(!top.length) return ""; return `<div class="podium">`+top.map((c,i)=>`<article class="pod p${i}"><div class="pod-img"><img src="${esc(img0(c))}" alt="${esc(c.name)}" referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0" ${imgErr(c)}><span class="medal">${i+1}</span><span class="pod-score">${f1(dfit(c,b))}</span></div><div class="pod-body"><h3>${esc(c.name)}</h3><p>${esc(c.note||("Top "+(i+1)))}</p></div></article>`).join("")+`</div>`; }
     function listHTML(){
       const b=board(); const items=sorted(); if(!items.length) return `<div class="empty"><h3>No matches</h3><p>Nothing matches the current filters.</p></div>`;
       return `<div class="list">`+items.map((c,i)=>{ const open=expanded.has(c.id);
         const bars=b.criteria.map(cr=>{const v=Number(c.scores[cr.id]||0); return `<div class="bar"><span>${esc(cr.label)}</span><div class="track"><div class="fill" style="width:${v*10}%"></div></div><strong>${f1(v)}</strong></div>`;}).join("");
         const sliders=b.criteria.map(cr=>`<label class="metric"><span>${esc(cr.label)}</span><input type="range" min="0" max="10" step="0.1" value="${c.scores[cr.id]}" data-a="score" data-id="${esc(c.id)}" data-cid="${esc(cr.id)}"><strong>${f1(c.scores[cr.id])}</strong></label>`).join("");
         const n=(c.images||[]).length;
-        return `<article class="row ${i<3?"top":""} ${selected.has(c.id)?"selected":""} ${open?"expanded":""}" data-drop="${esc(c.id)}"><div class="rank-badge">${i+1}</div><div class="thumb"><img src="${esc(img0(c))}" alt="${esc(c.name)}" referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0" ${imgErr(c)}>${n>1?`<span class="thumb-count">${n}</span>`:""}</div><div class="row-main"><div class="row-title"><h3>${esc(c.name)}</h3><span class="chip ${c.status}">${esc(c.status)}</span><label class="sel"><input type="checkbox" data-a="sel" data-id="${esc(c.id)}" ${selected.has(c.id)?"checked":""}>compare</label></div>${c.note?`<p class="row-note">${esc(c.note)}</p>`:""}${(c.tags||[]).length?`<div class="row-tags">${c.tags.map(t=>`<button class="tag" data-a="tagf" data-t="${esc(t)}">${esc(t)}</button>`).join("")}</div>`:""}</div><div class="row-metrics"><div class="fit"><span class="num">${f1(fit(c,b))}</span><span class="lab">weighted fit</span></div><div class="bars">${bars}</div></div><div class="row-tools"><div class="tools-grid"><div><div class="status-set"><button data-a="status" data-id="${esc(c.id)}" data-status="keep" class="${c.status==="keep"?"active":""}">Keep</button><button data-a="status" data-id="${esc(c.id)}" data-status="maybe" class="${c.status==="maybe"?"active":""}">Maybe</button><button data-a="status" data-id="${esc(c.id)}" data-status="pass" class="${c.status==="pass"?"active":""}">Pass</button></div>${sliders}</div><div><div class="img-tools"><input placeholder="Paste image URL" data-url="${esc(c.id)}"><button data-a="addurl" data-id="${esc(c.id)}">Add</button><label class="up">Upload<input type="file" accept="image/*" multiple style="display:none" data-a="upload" data-id="${esc(c.id)}"></label></div><p class="drop-note">Drag &amp; drop images onto this row.</p><div style="display:flex;gap:8px;margin-top:10px"><a href="https://www.google.com/search?tbm=isch&q=${encodeURIComponent(c.name)}" target="_blank" rel="noreferrer" style="flex:1"><button style="width:100%">Image search</button></a><button class="del-btn" data-a="del" data-id="${esc(c.id)}">Delete</button></div></div></div></div><div class="expand-toggle"><button data-a="expand" data-id="${esc(c.id)}">${open?"Hide editor ▲":"Edit scores, status &amp; images ▼"}</button></div></article>`;
+        return `<article class="row ${i<3?"top":""} ${selected.has(c.id)?"selected":""} ${open?"expanded":""}" data-drop="${esc(c.id)}"><div class="rank-badge">${i+1}</div><div class="thumb"><img src="${esc(img0(c))}" alt="${esc(c.name)}" referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0" ${imgErr(c)}>${n>1?`<span class="thumb-count">${n}</span>`:""}</div><div class="row-main"><div class="row-title"><h3>${esc(c.name)}</h3>${spreadBadge(c)}<span class="chip ${c.status}">${esc(c.status)}</span><label class="sel"><input type="checkbox" data-a="sel" data-id="${esc(c.id)}" ${selected.has(c.id)?"checked":""}>compare</label></div>${c.note?`<p class="row-note">${esc(c.note)}</p>`:""}${(c.tags||[]).length?`<div class="row-tags">${c.tags.map(t=>`<button class="tag" data-a="tagf" data-t="${esc(t)}">${esc(t)}</button>`).join("")}</div>`:""}</div><div class="row-metrics"><div class="fit"><span class="num">${f1(dfit(c,b))}</span><span class="lab">${groupMode?"group score":"weighted fit"}</span></div><div class="bars">${bars}</div></div><div class="row-tools"><div class="tools-grid"><div><div class="status-set"><button data-a="status" data-id="${esc(c.id)}" data-status="keep" class="${c.status==="keep"?"active":""}">Keep</button><button data-a="status" data-id="${esc(c.id)}" data-status="maybe" class="${c.status==="maybe"?"active":""}">Maybe</button><button data-a="status" data-id="${esc(c.id)}" data-status="pass" class="${c.status==="pass"?"active":""}">Pass</button></div>${sliders}</div><div><div class="img-tools"><input placeholder="Paste image URL" data-url="${esc(c.id)}"><button data-a="addurl" data-id="${esc(c.id)}">Add</button><label class="up">Upload<input type="file" accept="image/*" multiple style="display:none" data-a="upload" data-id="${esc(c.id)}"></label></div><p class="drop-note">Drag &amp; drop images onto this row.</p><div style="display:flex;gap:8px;margin-top:10px"><a href="https://www.google.com/search?tbm=isch&q=${encodeURIComponent(c.name)}" target="_blank" rel="noreferrer" style="flex:1"><button style="width:100%">Image search</button></a><button class="del-btn" data-a="del" data-id="${esc(c.id)}">Delete</button></div></div></div></div><div class="expand-toggle"><button data-a="expand" data-id="${esc(c.id)}">${open?"Hide editor ▲":"Edit scores, status &amp; images ▼"}</button></div></article>`;
       }).join("")+`</div>`;
     }
 
@@ -475,13 +506,13 @@
       if(b.candidates.filter(c=>c.status!=="pass").length<2) return `<div class="empty"><h3>Need two items</h3><p>Add at least two non-passed items to run matchups.</p></div>`;
       if(!pair.length || pair.some(p=>!board().candidates.find(c=>c.id===p.id))) pair=pickPair();
       const [x,y]=pair; const lab=tCriterion==="overall"?"overall fit":(b.criteria.find(c=>c.id===tCriterion)||{}).label;
-      const val=c=> tCriterion==="overall"?f1(fit(c,b))+" fit":f1(c.scores[tCriterion])+" / 10";
+      const val=c=> tCriterion==="overall"?f1(dfit(c,b))+" fit":f1(dscore(c,tCriterion))+" / 10";
       const critOpts=`<option value="overall">Overall</option>`+b.criteria.map(c=>`<option value="${esc(c.id)}" ${c.id===tCriterion?"selected":""}>${esc(c.label)}</option>`).join("");
-      const standings=[...b.candidates].filter(c=>c.status!=="pass").sort((a,c)=>fit(c,b)-fit(a,b)).slice(0,8);
+      const standings=[...b.candidates].filter(c=>c.status!=="pass").sort((a,c)=>dfit(c,b)-dfit(a,b)).slice(0,8);
       const card=c=>`<button class="trn-card" data-a="tpick" data-id="${esc(c.id)}"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer"><div class="n">${esc(c.name)}</div><div class="m">${esc(val(c))} · ${c.compareCount||0} matchups</div></button>`;
       return `<div class="trn"><div class="trn-head"><h2>Which is better?</h2><span class="mode-desc">Judging on</span><select data-a="tcrit" style="min-height:34px">${critOpts}</select></div>
         <div><div class="trn-arena">${card(x)}<div class="trn-vs">VS</div>${card(y)}</div><div class="trn-foot"><span>Picks feed the same scores every mode reads.</span><button data-a="tskip">Skip pair</button></div></div>
-        <aside class="standings"><h3>Standings</h3>${standings.map((c,i)=>`<div class="st-row"><span class="st-rank">${i+1}</span><span>${esc(c.name)}</span><span class="st-fit">${f1(fit(c,b))}</span></div>`).join("")}</aside></div>`;
+        <aside class="standings"><h3>Standings</h3>${standings.map((c,i)=>`<div class="st-row"><span class="st-rank">${i+1}</span><span>${esc(c.name)}</span><span class="st-fit">${f1(dfit(c,b))}</span>${spreadBadge(c)}</div>`).join("")}</aside></div>`;
     }
     function tournamentPick(id){ const [x,y]=pair; if(!x||!y) return; const win=id===x.id?x:y, lose=id===x.id?y:x; eloUpdate(win,lose,tCriterion); win.compareCount=(win.compareCount||0)+1; lose.compareCount=(lose.compareCount||0)+1; save(); pair=pickPair(); renderStage(); renderBoards(); }
 
@@ -493,7 +524,7 @@
       const xL=(b.criteria.find(c=>c.id===quad.x)||{}).label, yL=(b.criteria.find(c=>c.id===quad.y)||{}).label;
       const items=b.candidates.filter(c=>c.status!=="pass");
       const gl=[2,4,6,8].map(n=>`<div class="grid-line gl-v" style="left:${n*10}%"></div><div class="grid-line gl-h" style="top:${n*10}%"></div>`).join("");
-      const tiles=items.map(c=>{ const xv=Number(c.scores[quad.x]||0), yv=Number(c.scores[quad.y]||0); return `<div class="qtile" data-qid="${esc(c.id)}" style="left:${xv*10}%; bottom:${yv*10}%"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><span>${esc(c.name)}</span></div>`; }).join("");
+      const tiles=items.map(c=>{ const xv=dscore(c,quad.x), yv=dscore(c,quad.y); const sp=dspread(c); const spc=(groupMode&&sp>0)?(sp<1?"tight":sp<3?"some":"split"):""; return `<div class="qtile ${spc?"has-spread "+spc:""}" data-qid="${esc(c.id)}" style="left:${xv*10}%; bottom:${yv*10}%"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><span>${esc(c.name)}</span></div>`; }).join("");
       return `<div class="quad-controls"><label>X axis: <select data-a="quadx" style="min-height:34px">${opts(quad.x)}</select></label><label>Y axis: <select data-a="quady" style="min-height:34px">${opts(quad.y)}</select></label><span class="mode-desc">Drag a tile to re-score it on both axes.</span></div>
         <div class="quad-wrap"><div class="quad-ylab">${esc(yL)} →</div><div class="plot" id="plot">${gl}<span class="qlabel" style="left:6px;bottom:6px">0,0</span><span class="qlabel" style="right:6px;top:6px">10,10</span>${tiles}</div><div class="quad-xlab">${esc(xL)} →</div></div>`;
     }
@@ -501,12 +532,12 @@
     /* ----- tiers ----- */
     const TIERS=["S","A","B","C","D"];
     function fitTier(v){ return v>=8.5?"S":v>=7.5?"A":v>=6.5?"B":v>=5?"C":"D"; }
-    function tierOf(c){ return c.tier||fitTier(fit(c)); }
+    function tierOf(c){ return (groupMode?null:c.tier)||fitTier(dfit(c)); }
     function tiersHTML(){
       const b=board(); const items=b.candidates.filter(c=>c.status!=="pass");
       const byTier={}; TIERS.forEach(t=>byTier[t]=[]); items.forEach(c=>{ (byTier[tierOf(c)]||byTier.D).push(c); });
-      TIERS.forEach(t=>byTier[t].sort((x,y)=>fit(y,b)-fit(x,b)));
-      return `<p class="tier-hint">Cards start where their weighted fit suggests. Drag any card to a new tier to override; it stays put after.</p><div class="tiers">`+TIERS.map(t=>`<div class="tier ${t}"><div class="tier-badge">${t}</div><div class="tier-drop" data-tier="${t}">${byTier[t].map(c=>`<div class="tcard" draggable="true" data-tid="${esc(c.id)}"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><div class="tn">${esc(c.name)} · ${f1(fit(c,b))}</div></div>`).join("")}</div></div>`).join("")+`</div>`;
+      TIERS.forEach(t=>byTier[t].sort((x,y)=>dfit(y,b)-dfit(x,b)));
+      return `<p class="tier-hint">Cards start where their weighted fit suggests. Drag any card to a new tier to override; it stays put after.</p><div class="tiers">`+TIERS.map(t=>`<div class="tier ${t}"><div class="tier-badge">${t}</div><div class="tier-drop" data-tier="${t}">${byTier[t].map(c=>`<div class="tcard" draggable="true" data-tid="${esc(c.id)}"><img src="${esc(img0(c))}" ${imgErr(c)} referrerpolicy="no-referrer" data-a="lb" data-id="${esc(c.id)}" data-idx="0"><div class="tn">${esc(c.name)} · ${f1(dfit(c,b))} ${spreadBadge(c)}</div></div>`).join("")}</div></div>`).join("")+`</div>`;
     }
 
     function emptyHTML(){ return `<div class="empty"><h3>This board is empty</h3><p>Add options against a rubric you control, then try each mode.</p><ol><li>Add items on the left.</li><li>Tune the rubric weights.</li><li>Rank with List, Tournament, Quadrant or Tiers.</li></ol><div class="acts"><button class="primary" data-a="loadsample">Load sample set</button><button data-a="focusadd">Add first item</button></div></div>`; }
@@ -522,7 +553,7 @@
     async function handleFiles(c,files){ const imgs=[...files].filter(f=>f.type.startsWith("image/")); if(!imgs.length) return; const entries=[]; for(const f of imgs){ entries.push({url:await fileToDataUrl(f),source:"upload",caption:f.name}); } addImgs(c,entries); toast(`Added ${entries.length} image${entries.length>1?"s":""}.`); }
     function openLB(id,idx){ const c=findC(id); const im=document.getElementById("lbImg"); im.src=(c&&c.images&&c.images[Number(idx)])?c.images[Number(idx)].url:placeholder(c?c.name:""); im.alt=c?c.name:""; document.getElementById("lightbox").classList.add("open"); }
     function closeLB(){ document.getElementById("lightbox").classList.remove("open"); document.getElementById("lbImg").src=""; }
-    function setMode(m){ mode=m; localStorage.setItem(MODE_KEY,m); selected.clear(); render(); }
+    function setMode(m){ mode=m; localStorage.setItem(MODE_KEY,m); selected.clear(); if(aggBoards.length===0) groupMode=false; render(); }
 
     /* ---------- photos (Wikipedia by name) ---------- */
     async function fetchWikiImage(c){
@@ -559,6 +590,7 @@
       const t=e.target.closest("[data-a],[data-x]"); if(!t) return; const a=t.dataset.a,x=t.dataset.x,id=t.dataset.id;
       if(x==="cmp") document.getElementById("cmpOverlay").classList.remove("open");
       else if(a==="mode") setMode(t.dataset.mode);
+      else if(a==="lens"){ groupMode=(t.dataset.lens==="group"); refreshGI(); renderStage(); }
       else if(a==="board"){ state.activeId=id; selected.clear(); expanded.clear(); pair=[]; save(); render(); }
       else if(a==="board-del"){ e.stopPropagation(); const b=state.boards.find(x=>x.id===id); if(!b||state.boards.length<=1) return; if(!confirm(`Delete board "${b.name}"?`)) return; state.boards=state.boards.filter(x=>x.id!==id); if(state.activeId===id) state.activeId=state.boards[0].id; selected.clear(); save(); render(); }
       else if(a==="crit-del"){ const b=board(); if(b.criteria.length<=1) return; const cn=(b.criteria.find(c=>c.id===t.dataset.cid)||{}).label||"this criterion"; if(!confirm("Delete \""+cn+"\" and its scores on every item?")) return; b.criteria=b.criteria.filter(c=>c.id!==t.dataset.cid); b.candidates.forEach(c=>delete c.scores[t.dataset.cid]); save(); render(); }
@@ -606,7 +638,7 @@
       if(tier && tid){ e.preventDefault(); tier.classList.remove("over"); const c=findC(tid); if(c){ c.tier=tier.dataset.tier; save(); renderStage(); } }
     });
     // quadrant drag (pointer)
-    stage.addEventListener("pointerdown",e=>{ const tile=e.target.closest(".qtile"); if(!tile||mode!=="quadrant") return; const plot=document.getElementById("plot"); drag={ id:tile.dataset.qid, tile, rect:plot.getBoundingClientRect() }; tile.classList.add("drag"); tile.setPointerCapture&&tile.setPointerCapture(e.pointerId); e.preventDefault(); });
+    stage.addEventListener("pointerdown",e=>{ const tile=e.target.closest(".qtile"); if(!tile||mode!=="quadrant"||groupMode) return; const plot=document.getElementById("plot"); drag={ id:tile.dataset.qid, tile, rect:plot.getBoundingClientRect() }; tile.classList.add("drag"); tile.setPointerCapture&&tile.setPointerCapture(e.pointerId); e.preventDefault(); });
     stage.addEventListener("pointermove",e=>{ if(!drag) return; const {rect,tile}=drag; let xv=(e.clientX-rect.left)/rect.width*10; let yv=(1-(e.clientY-rect.top)/rect.height)*10; xv=Math.max(0,Math.min(10,xv)); yv=Math.max(0,Math.min(10,yv)); const c=findC(drag.id); if(!c) return; c.scores[quad.x]=clampScore(xv); c.scores[quad.y]=clampScore(yv); tile.style.left=(xv*10)+"%"; tile.style.bottom=(yv*10)+"%"; });
     stage.addEventListener("pointerup",()=>{ if(!drag) return; drag.tile.classList.remove("drag"); drag=null; save(); });
 
