@@ -424,7 +424,9 @@
         note: c.note || "",
         images: Array.isArray(c.images) ? c.images.map(normImg).filter(Boolean) : [],
         scores,
-        compareCount: Number(c.compareCount || 0)
+        tier: c.tier ?? null,        // preserve fields index.html writes to
+        wikiTried: Boolean(c.wikiTried),  // the shared storage key, or editing
+        compareCount: Number(c.compareCount || 0)  // in studio silently wipes them
       };
     }
     function normImg(i){ if(!i) return null; if(typeof i==="string") return { url:i, source:i, caption:"" }; if(!i.url) return null; return { url:i.url, source:i.source||i.url, caption:i.caption||"" }; }

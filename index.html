@@ -100,6 +100,7 @@
     .rank-badge{display:grid; place-items:center; width:42px; height:42px; border-radius:12px; background:var(--panel-2); border:1px solid var(--line); font-weight:800; font-size:16px;}
     .row.top .rank-badge{background:linear-gradient(150deg,var(--accent-2),var(--accent)); color:#241a08; border-color:transparent;}
     .thumb{position:relative; aspect-ratio:3/4; border-radius:12px; overflow:hidden; background:var(--panel-2);}
+    .thumb .thumb-count{position:absolute; right:6px; bottom:6px; background:rgba(8,10,14,.75); border-radius:6px; padding:2px 6px; font-size:11px; color:var(--muted);}
     .thumb img{width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in;}
     .row-main{min-width:0; display:grid; gap:8px;}
     .row-title{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
@@ -364,7 +365,7 @@
     function sorted(opts={}){ const b=board(); const q=(document.getElementById("search").value||"").trim().toLowerCase(); const st=document.getElementById("statusFilter").value; const sb=document.getElementById("sort").value; let list=[...b.candidates]; if(q) list=list.filter(c=>[c.name,c.note,...(c.tags||[])].join(" ").toLowerCase().includes(q)); if(st!=="all") list=list.filter(c=>c.status===st); list.sort((x,y)=>{ if(sb==="name") return x.name.localeCompare(y.name); if(!sb||sb==="fit") return fit(y,b)-fit(x,b); return Number(y.scores[sb]||0)-Number(x.scores[sb]||0); }); if(opts.limit) list=list.slice(0,opts.limit); return list; }
 
     function hue(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))%360; return h; }
-    function placeholder(name){ const ini=String(name).trim().split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase()||"?"; const h=hue(name||"x"); const svg=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='hsl(${h},32%,30%)'/><stop offset='1' stop-color='hsl(${(h+45)%360},38%,16%)'/></linearGradient></defs><rect width='300' height='400' fill='url(#g)'/><text x='150' y='222' font-family='Inter,sans-serif' font-size='120' font-weight='800' fill='rgba(255,255,255,.82)' text-anchor='middle'>${ini}</text></svg>`; return "data:image/svg+xml;base64,"+btoa(svg); }
+    function placeholder(name){ const ini=String(name).trim().split(/\s+/).slice(0,2).map(w=>[...w][0]||"").join("").toUpperCase()||"?"; const h=hue(name||"x"); const svg=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='hsl(${h},32%,30%)'/><stop offset='1' stop-color='hsl(${(h+45)%360},38%,16%)'/></linearGradient></defs><rect width='300' height='400' fill='url(#g)'/><text x='150' y='222' font-family='Inter,sans-serif' font-size='120' font-weight='800' fill='rgba(255,255,255,.82)' text-anchor='middle'>${ini}</text></svg>`; return "data:image/svg+xml;utf8,"+encodeURIComponent(svg); }
     function img0(c){ return (c.images&&c.images[0])?c.images[0].url:placeholder(c.name); }
     function esc(v){ return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;"); }
     function imgErr(c){ return `onerror="this.onerror=null;this.src='${esc(placeholder(c.name))}'"`; }
@@ -505,7 +506,7 @@
       else if(a==="mode") setMode(t.dataset.mode);
       else if(a==="board"){ state.activeId=id; selected.clear(); expanded.clear(); pair=[]; save(); render(); }
       else if(a==="board-del"){ e.stopPropagation(); const b=state.boards.find(x=>x.id===id); if(!b||state.boards.length<=1) return; if(!confirm(`Delete board "${b.name}"?`)) return; state.boards=state.boards.filter(x=>x.id!==id); if(state.activeId===id) state.activeId=state.boards[0].id; selected.clear(); save(); render(); }
-      else if(a==="crit-del"){ const b=board(); if(b.criteria.length<=1) return; b.criteria=b.criteria.filter(c=>c.id!==t.dataset.cid); b.candidates.forEach(c=>delete c.scores[t.dataset.cid]); save(); render(); }
+      else if(a==="crit-del"){ const b=board(); if(b.criteria.length<=1) return; const cn=(b.criteria.find(c=>c.id===t.dataset.cid)||{}).label||"this criterion"; if(!confirm("Delete \""+cn+"\" and its scores on every item?")) return; b.criteria=b.criteria.filter(c=>c.id!==t.dataset.cid); b.candidates.forEach(c=>delete c.scores[t.dataset.cid]); save(); render(); }
       else if(a==="status"){ const c=findC(id); if(c){ c.status=t.dataset.status; save(); render(); } }
       else if(a==="expand"){ if(expanded.has(id)) expanded.delete(id); else expanded.add(id); renderStage(); }
       else if(a==="del"){ const c=findC(id); if(!c||!confirm(`Delete "${c.name}"?`)) return; const b=board(); b.candidates=b.candidates.filter(y=>y.id!==id); selected.delete(id); expanded.delete(id); save(); render(); }
@@ -519,8 +520,8 @@
     });
     document.body.addEventListener("input",e=>{
       const t=e.target.closest("[data-a]"); if(!t) return;
-      if(t.dataset.a==="score"){ const c=findC(t.dataset.id); if(c){ c.scores[t.dataset.cid]=Number(t.value); const s=t.parentElement.querySelector("strong"); if(s) s.textContent=f1(t.value); save(); schedule(); } }
-      else if(t.dataset.a==="crit-w"){ const c=board().criteria.find(x=>x.id===t.dataset.cid); if(c){ c.weight=Number(t.value); const s=t.parentElement.querySelector("strong"); if(s) s.textContent=t.value; save(); schedule(); } }
+      if(t.dataset.a==="score"){ const c=findC(t.dataset.id); if(c){ c.scores[t.dataset.cid]=Number(t.value); const s=t.parentElement.querySelector("strong"); if(s) s.textContent=f1(t.value); scheduleSave(); schedule(); } }
+      else if(t.dataset.a==="crit-w"){ const c=board().criteria.find(x=>x.id===t.dataset.cid); if(c){ c.weight=Number(t.value); const s=t.parentElement.querySelector("strong"); if(s) s.textContent=t.value; scheduleSave(); schedule(); } }
       else if(t.dataset.a==="crit-name"){ const c=board().criteria.find(x=>x.id===t.dataset.cid); if(c){ c.label=t.value; save(); } }
     });
     document.body.addEventListener("change",e=>{
@@ -533,6 +534,7 @@
       else if(t.dataset.a==="quady"){ quad.y=t.value; renderStage(); }
     });
     let rt=null; function schedule(){ clearTimeout(rt); rt=setTimeout(()=>renderStage(),220); }
+    let st=null; function scheduleSave(){ clearTimeout(st); st=setTimeout(save,400); }
 
     const stage=document.getElementById("stage");
     // image drop (list) + tier drop share the drop event
@@ -559,13 +561,13 @@
     document.getElementById("compareBtn").addEventListener("click",openCompare);
     document.getElementById("photosBtn").addEventListener("click",fetchAllPhotos);
 
-    document.getElementById("addForm").addEventListener("submit",e=>{ e.preventDefault(); const name=document.getElementById("newName").value.trim(); if(!name) return; const tags=document.getElementById("newTags").value.split(",").map(s=>s.trim()).filter(Boolean); const b=board(); b.candidates.push(normCand({name,status:"review",tags,note:document.getElementById("newNote").value.trim()},b.criteria)); e.target.reset(); save(); render(); toast(`Added "${name}".`); });
+    document.getElementById("addForm").addEventListener("submit",e=>{ e.preventDefault(); const name=document.getElementById("newName").value.trim(); if(!name) return; const tags=document.getElementById("newTags").value.split(",").map(s=>s.trim()).filter(Boolean); const b=board(); const nc=normCand({name,status:"review",tags,note:document.getElementById("newNote").value.trim()},b.criteria); b.candidates.push(nc); e.target.reset(); save(); render(); toast(`Added "${name}".`); nc.wikiTried=true; fetchWikiImage(nc).then(ok=>{ if(ok){ save(); render(); } }); });
     document.getElementById("boardForm").addEventListener("submit",e=>{ e.preventDefault(); const name=document.getElementById("boardName").value.trim(); const tpl=document.getElementById("boardTemplate").value; let b; if(tpl==="current"){ const src=board(); b=JSON.parse(JSON.stringify(src)); b.id=uid("b"); b.name=name||(src.name+" copy"); b.candidates.forEach(c=>c.id=uid("i")); } else if(tpl==="sample") b=sampleBoard(name||"Sample: Destinations"); else b=blankBoard(name||"Untitled"); state.boards.push(b); state.activeId=b.id; selected.clear(); pair=[]; e.target.reset(); save(); render(); });
     document.getElementById("clearBtn").addEventListener("click",()=>{ const b=board(); if(!confirm(`Remove all items from "${b.name}"?`)) return; b.candidates=[]; selected.clear(); pair=[]; save(); render(); });
     document.getElementById("resetBtn").addEventListener("click",()=>{ const b=board(); if(!confirm(`Replace "${b.name}" with the sample set?`)) return; const s=sampleBoard(); b.criteria=s.criteria; b.candidates=s.candidates; selected.clear(); pair=[]; save(); render(); });
     document.getElementById("exportBtn").addEventListener("click",()=>{ const card=document.getElementById("exportCard"); const show=card.style.display==="none"; card.style.display=show?"block":"none"; if(show) document.getElementById("exportText").value=JSON.stringify(state,null,2); });
     document.getElementById("copyBtn").addEventListener("click",async()=>{ try{ await navigator.clipboard.writeText(document.getElementById("exportText").value); toast("Copied."); }catch(e){ toast("Copy failed."); } });
-    document.getElementById("importBtn").addEventListener("click",()=>{ try{ const p=JSON.parse(document.getElementById("exportText").value); if(!Array.isArray(p.boards)) throw 0; state={boards:p.boards.map(normBoard).filter(Boolean),activeId:p.activeId}; if(!state.boards.length) state.boards=[sampleBoard()]; if(!state.boards.some(b=>b.id===state.activeId)) state.activeId=state.boards[0].id; selected.clear(); pair=[]; save(); render(); toast("Imported."); }catch(e){ toast("That JSON didn't import cleanly."); } });
+    document.getElementById("importBtn").addEventListener("click",()=>{ if(!confirm("Import replaces ALL current boards. Continue?")) return; try{ const p=JSON.parse(document.getElementById("exportText").value); if(!Array.isArray(p.boards)) throw 0; state={boards:p.boards.map(normBoard).filter(Boolean),activeId:p.activeId}; if(!state.boards.length) state.boards=[sampleBoard()]; if(!state.boards.some(b=>b.id===state.activeId)) state.activeId=state.boards[0].id; selected.clear(); pair=[]; save(); render(); toast("Imported."); }catch(e){ toast("That JSON didn't import cleanly."); } });
 
     document.getElementById("lbClose").addEventListener("click",closeLB);
     document.getElementById("lightbox").addEventListener("click",e=>{ if(e.target.id==="lightbox") closeLB(); });
@@ -573,7 +575,8 @@
     document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeLB(); document.querySelectorAll(".overlay.open").forEach(o=>o.classList.remove("open")); } });
 
     render();
-    autoPhotos();
+    // auto-fetch on load removed: photos now fetch per item on add,
+    // and the "Get photos" button backfills. Honest network use.
   </script>
 </body>
 </html>
